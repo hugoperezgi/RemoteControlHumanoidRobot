@@ -36,7 +36,6 @@ public class FirebaseController {
         if(firebaseApp!=null){if(database==null){database = FirebaseDatabase.getInstance().getReference();}else{return;}}
         Scanner scn = new Scanner(new File("src\\main\\resources\\controllers\\url.txt"));
         String url = scn.nextLine();
-        System.out.println(url);
         FileInputStream serviceAccount=new FileInputStream("src\\main\\resources\\controllers\\serviceAccountKey.json");
         FirebaseOptions options = new FirebaseOptions.Builder()
         .setCredentials(GoogleCredentials.fromStream(serviceAccount))
@@ -44,6 +43,7 @@ public class FirebaseController {
         .build();
         firebaseApp = FirebaseApp.initializeApp(options);
         database = FirebaseDatabase.getInstance().getReference();
+        scn.close();
     }
 
     public int setTargetPos(int srvId, int servoAngle) throws InterruptedException{
@@ -104,6 +104,28 @@ public class FirebaseController {
         tpRef=database.child("currentPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
         tpUpdt.put("servo"+String.valueOf(srvId),servoAngle);
+        tpRef.updateChildrenAsync(tpUpdt);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
+        return 0;
+    }
+
+    public int setUpdatePostion() throws InterruptedException{
+        waitWriting=true;
+
+        tpRef=database.getRef();
+        Map<String, Object> tpUpdt=new HashMap<>();
+        tpUpdt.put("UpdatePostion",true);
         tpRef.updateChildrenAsync(tpUpdt);
         tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
