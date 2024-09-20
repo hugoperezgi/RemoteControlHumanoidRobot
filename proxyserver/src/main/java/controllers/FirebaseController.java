@@ -52,7 +52,7 @@ public class FirebaseController {
         if(servoAngle<0||servoAngle>180){return 1;}
         tpRef=database.child("targetPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("servo"+String.valueOf(srvId),servoAngle);
+        tpUpdt.put(String.valueOf(srvId),servoAngle);
         tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
             public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
@@ -76,7 +76,7 @@ public class FirebaseController {
         for (int i : srvId) {
             if(i<0||i>20){return -1;}
             if(servoAngle[j]<0||servoAngle[j]>180){return 1;}
-            tpUpdt.put("servo"+String.valueOf(i),servoAngle[j]);
+            tpUpdt.put(String.valueOf(i),servoAngle[j]);
             j++;
         }
         
@@ -103,7 +103,7 @@ public class FirebaseController {
         
         tpRef=database.child("currentPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("servo"+String.valueOf(srvId),servoAngle);
+        tpUpdt.put(String.valueOf(srvId),servoAngle);
         tpRef.updateChildrenAsync(tpUpdt);
         tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
@@ -178,7 +178,7 @@ public class FirebaseController {
             Thread.sleep(100);
         } while (tmpMap==null);
         readMap=tmpMap;tmpMap=null;
-        return (long) readMap.get("servo"+String.valueOf(srvId));
+        return (long) readMap.get(String.valueOf(srvId));
     }
 
     public Map getALLTargetPos() throws InterruptedException{
@@ -217,7 +217,7 @@ public class FirebaseController {
             Thread.sleep(100);
         } while (tmpMap==null);
         readMap=tmpMap;tmpMap=null;
-        return (long) readMap.get("servo"+String.valueOf(srvId));
+        return (long) readMap.get(String.valueOf(srvId));
     }
 
 
