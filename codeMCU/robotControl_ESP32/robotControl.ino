@@ -33,6 +33,21 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+
+    if(fb.getBool(/* TODO whatever control code*/)){
+        int cc=fb.getInt(/* TODO whatever control code*/);
+        for (int i=0; i < 27; i++){
+            if((cc & (0b1<<i))==(0b1<<i)){
+                /* Whatever code - Store positions */
+            }
+        }
+        for (int i=0; i < 27; i++){
+            if((cc & (0b1<<i))==(0b1<<i)){
+                /* Whatever code - Move servos */
+            }
+        }
+        
+    }
+    delay(1000);
 
 }
