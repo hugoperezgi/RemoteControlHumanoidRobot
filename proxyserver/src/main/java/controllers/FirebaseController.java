@@ -2,6 +2,7 @@ package controllers;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -21,14 +22,14 @@ public class FirebaseController {
     private static FirebaseApp firebaseApp;
     private static DatabaseReference database;
     private static DatabaseReference tpRef;
-    private static Map readMap, tmpMap;
+    private static ArrayList readList, tmpList;
     private static boolean waitWriting;
     
     public FirebaseController(){
         firebaseApp=null;
         database=null;
         tpRef=null;
-        readMap=null;
+        readList=null;
         waitWriting=true;
     }
 
@@ -48,7 +49,7 @@ public class FirebaseController {
 
     public int setTargetPos(int srvId, int servoAngle) throws InterruptedException{
         waitWriting=true;
-        if(srvId<0||srvId>20){return -1;}
+        if(srvId<0||srvId>26){return -1;}
         if(servoAngle<0||servoAngle>180){return 1;}
         tpRef=database.child("targetPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
@@ -74,7 +75,7 @@ public class FirebaseController {
         Map<String, Object> tpUpdt=new HashMap<>();
         short j=0;
         for (int i : srvId) {
-            if(i<0||i>20){return -1;}
+            if(i<0||i>26){return -1;}
             if(servoAngle[j]<0||servoAngle[j]>180){return 1;}
             tpUpdt.put(String.valueOf(i),servoAngle[j]);
             j++;
@@ -98,7 +99,7 @@ public class FirebaseController {
     /**@Deprecated DO NOT USE THIS, THE MCU SHOULD BE THE ONE UPDATING THE CURRENT POSITIONS. Test only */ 
     public int setCurrentPos(int srvId, int servoAngle) throws InterruptedException{
         waitWriting=true;
-        if(srvId<0||srvId>20){return -1;}
+        if(srvId<0||srvId>26){return -1;}
         if(servoAngle<0||servoAngle>180){return 1;}
         
         tpRef=database.child("currentPosition");
@@ -142,13 +143,35 @@ public class FirebaseController {
         return 0;
     }
 
-    public Map getALLCurrentPos() throws InterruptedException{
+    public int setNewInfo() throws InterruptedException{
+        waitWriting=true;
+
+        tpRef=database.getRef();
+        Map<String, Object> tpUpdt=new HashMap<>();
+        tpUpdt.put("NewInfo",true);
+        tpRef.updateChildrenAsync(tpUpdt);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
+        return 0;
+    }
+
+    public ArrayList getALLCurrentPos() throws InterruptedException{
         
         tpRef=database.child("currentPosition");
         tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
+                tmpList= (ArrayList) dataSnapshot.getValue();
             }
           
             @Override
@@ -156,38 +179,22 @@ public class FirebaseController {
         });
         do {
             Thread.sleep(100);
-        } while (tmpMap==null);
-        System.out.println(readMap.toString());
-        readMap=tmpMap;tmpMap=null;
-        return readMap;
+        } while (tmpList==null);
+        readList=tmpList;tmpList=null;
+        return readList;
     }
     public long getCurrentPos(int srvId) throws InterruptedException{
-        if(srvId<0||srvId>20){return -1;}
-        tpRef=database.child("currentPosition");
-        tmpMap=null;
-        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
-            }
-          
-            @Override
-            public void onCancelled(DatabaseError databaseError) {}
-        });
-        do {
-            Thread.sleep(100);
-        } while (tmpMap==null);
-        readMap=tmpMap;tmpMap=null;
-        return (long) readMap.get(String.valueOf(srvId));
+        if(srvId<0||srvId>26){return -1;}
+        return (long) getALLCurrentPos().get(srvId);
     }
 
-    public Map getALLTargetPos() throws InterruptedException{
+    public ArrayList getALLTargetPos() throws InterruptedException{
         
         tpRef=database.child("targetPosition");
         tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
+                tmpList=(ArrayList) dataSnapshot.getValue();
             }
           
             @Override
@@ -195,32 +202,15 @@ public class FirebaseController {
         });
         do {
             Thread.sleep(100);
-        } while (tmpMap==null);
-        System.out.println(readMap.toString());
-        readMap=tmpMap;tmpMap=null;
-        return readMap;
+        } while (tmpList==null);
+        readList=tmpList;tmpList=null;
+        return readList;
     }
+
     public long getTargetPos(int srvId) throws InterruptedException{
-        if(srvId<0||srvId>20){return -1;}
-        tpRef=database.child("targetPosition");
-        tmpMap=null;
-        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
-            }
-          
-            @Override
-            public void onCancelled(DatabaseError databaseError) {}
-        });
-        do {
-            Thread.sleep(100);
-        } while (tmpMap==null);
-        readMap=tmpMap;tmpMap=null;
-        return (long) readMap.get(String.valueOf(srvId));
+        if(srvId<0||srvId>26){return -1;}
+        return (long) getALLTargetPos().get(srvId);
     }
-
-
 
     public void close(){
         firebaseApp.delete();
