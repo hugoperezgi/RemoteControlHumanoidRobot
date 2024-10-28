@@ -6,11 +6,15 @@ import controllers.ClientHandler;
 import controllers.FirebaseController;
 
 public class Main {
+
+    public static boolean shutdown=false;
+
     public static void main(String[] args) throws Exception {   
+        Main.shutdown=false;
         ServerSocket s = new ServerSocket();
         InetSocketAddress serverIPAddr = new InetSocketAddress("127.0.0.1",50500); 
         s.bind(serverIPAddr); 
-        while (true){
+        while (!Main.shutdown){
             try {
                 ClientHandler clientThread = new ClientHandler(s.accept());
                 clientThread.setDaemon(true);
@@ -20,6 +24,7 @@ public class Main {
                 e.printStackTrace();
             }
         }
+        ClientHandler.fb.close();
         // fb();
     }
 
@@ -27,17 +32,9 @@ public class Main {
     // private static void fb()throws Exception{
     //     FirebaseController f = new FirebaseController();
     //     f.ini();
-    //     System.out.println(f.getCurrentPos(0));
-    //     System.out.println(f.setCurrentPos(0,139));
-    //     System.out.println(f.getCurrentPos(0));
-    //     System.out.println(f.setCurrentPos(0,178));
-    //     System.out.println(f.setCurrentPos(0,187));
-    //     System.out.println(f.getCurrentPos(0));
-    //     System.out.println(f.setCurrentPos(0,101));
-    //     System.out.println(f.getCurrentPos(0));
-    //     System.out.println(f.setCurrentPos(0,27));
-    //     System.out.println(f.getCurrentPos(0));
-    //     f.setUpdatePostion();
+    //     f.setServoUpdateFlag(0b1<<28);
+    //     System.out.println(f.getServoUpdateFlag());
+    //     System.out.println(0b1<<28);
     //     f.close();
     // }
 }

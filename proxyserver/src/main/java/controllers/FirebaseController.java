@@ -24,12 +24,14 @@ public class FirebaseController {
     private static DatabaseReference tpRef;
     private static ArrayList readList, tmpList;
     private static boolean waitWriting;
+	private static Integer tmpInt;
     
     public FirebaseController(){
         firebaseApp=null;
         database=null;
         tpRef=null;
         readList=null;
+		tmpInt=null;
         waitWriting=true;
     }
 
@@ -211,6 +213,46 @@ public class FirebaseController {
         if(srvId<0||srvId>26){return -1;}
         return (long) getALLTargetPos().get(srvId);
     }
+
+    public int setServoUpdateFlag(int servoControlFlag) throws InterruptedException{
+      waitWriting=true;
+
+      tpRef=database.getRef();
+      Map<String, Object> tpUpdt=new HashMap<>();
+      tpUpdt.put("ServoUpdateFlag",servoControlFlag);
+      tpRef.updateChildrenAsync(tpUpdt);
+      tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+          @Override
+          public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+            if (databaseError != null) {
+              System.out.println("Data could not be saved " + databaseError.getMessage());
+            } 
+            waitWriting=false;
+          }
+        });
+      do {            
+          Thread.sleep(100);
+      } while (waitWriting);waitWriting=true;
+      return 0;
+	}
+
+    public int getServoUpdateFlag() throws InterruptedException{
+		tpRef=database.child("ServoUpdateFlag");
+		tmpInt=null;
+        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                tmpInt=((Long) dataSnapshot.getValue()).intValue();
+            }
+          
+            @Override
+            public void onCancelled(DatabaseError databaseError) {}
+        });
+        do {
+            Thread.sleep(100);
+        } while (tmpInt==null);
+        return tmpInt.intValue();
+	}
 
     public void close(){
         firebaseApp.delete();
