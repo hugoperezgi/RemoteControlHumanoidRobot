@@ -95,6 +95,13 @@ public class ClientHandler extends Thread{
     }
 
     private String updateServoPostitions(int servoCount, String servoPositions){
+
+        try {
+            fb.setNewInfo();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return "ERROR_FBCON";
+        }
         String[] sPosA=servoPositions.split("~");
         if(sPosA.length!=servoCount){return "ERROR_INVALIDFORMAT";}
         int[] servoIds=new int[servoCount], servoPos=new int[servoCount];

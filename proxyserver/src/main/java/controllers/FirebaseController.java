@@ -128,7 +128,7 @@ public class FirebaseController {
 
         tpRef=database.getRef();
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("UpdatePostion",true);
+        tpUpdt.put("FlagMoveServo",true);
         tpRef.updateChildrenAsync(tpUpdt);
         tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
@@ -150,7 +150,7 @@ public class FirebaseController {
 
         tpRef=database.getRef();
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("NewInfo",true);
+        tpUpdt.put("FlagNewInfo",true);
         tpRef.updateChildrenAsync(tpUpdt);
         tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
