@@ -1,5 +1,6 @@
 #define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
+
 //Std Max-Min of servos
 #define SERVOMIN  71 // This is the 'minimum' pulse length count (out of 4096) AKA 0
 #define SERVOMAX  455 // This is the 'maximum' pulse length count (out of 4096) AKA 180º
@@ -88,14 +89,16 @@
 #define SERVOMIDDLE_torso 280 //Hold position-Middle position
 
 
+int minServoPos[]={SERVOMIN_thumb_L,SERVOMIN_index_L,SERVOMIN_middle_L,SERVOMIN_ring_L,SERVOMIN_pinky_L,SERVOMIN_palm_L};
+int maxServoPos[]={SERVOMAX_thumb_L,SERVOMAX_index_L,SERVOMAX_middle_L,SERVOMAX_ring_L,SERVOMAX_pinky_L,SERVOMAX_palm_L};
+
 
 //Board1 - Left Hand(6) // Board3 - Right Hand(6)
-    //Board1/3 ids
-    // thumb 0, index 1, middle 2, ring 3, pinky 4, palm 5
-
-//Board2 - Arms/Torso/Head(3x2/6/3)
-    //Board2 ids
-    // forearmRotationL - 0 / armFlexL - 2 / bicepsRotationL - 4 / shoulderArmRotationL - 6 / shoulderTorsoRotationL - 8
-    // forearmRotationR - 1 / armFlexR - 3 / bicepsRotationR - 5 / shoulderArmRotationR - 7 / shoulderTorsoRotationR - 9
-    // torsoTiltL - 10 / torsoTiltR - 11
-    // headTiltL - 13 / headTiltR - 14 / headRotation - 15
+//Board1/3 ids
+// thumb 0, index 1, middle 2, ring 3, pinky 4, palm 5
+// Board2 - Arms/Torso/Head(3x2/6/3)
+//Board2 ids
+// forearmRotationL - 0 / armFlexL - 2 / bicepsRotationL - 4 / shoulderArmRotationL - 6 / shoulderTorsoRotationL - 8
+// forearmRotationR - 1 / armFlexR - 3 / bicepsRotationR - 5 / shoulderArmRotationR - 7 / shoulderTorsoRotationR - 9
+// torsoTiltL - 10 / torsoTiltR - 11
+// headTiltL - 13 / headTiltR - 14 / headRotation - 15

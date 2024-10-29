@@ -9,10 +9,9 @@
   Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x41);
 //   Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x42);
 
-uint8_t[] currentPostition[27],targetPosition[27];
-float[] servoSteps[27];
-int[] servoMin[27];
+uint8_t currentPostition[27],targetPosition[27];
 uint8_t i,j;
+int cc;
 
 void setup() {
   Serial.begin(9600);
@@ -22,7 +21,7 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PSSW);
   // WiFi.setSleep(false);
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-	Serial.print("Stuck at wifi connection: ");
+    Serial.print("Stuck at wifi connection: ");
     Serial.println(WiFi.waitForConnectResult());
     // WiFi.reconnect();
     delay(1000);
@@ -43,34 +42,44 @@ void setup() {
 
 void loop() {
 
-    if(fb.getBool("NEWINFO")){ 
-        int cc=fb.getInt("SERVOCONTROL"); 
+    if(fb.getBool("FlagNewInfo")){ 
+
+		cc=fb.getInt("ServoUpdateFlag"); 
+
+		for (i=0; i < 27; i++){
+			if((cc & (0b1<<i))==(0b1<<i)){
+				targetPosition[i]=(uint8_t)fb.getInt("targetPosition/"+String(i));
+			}
+        }
+
+		fb.setBool("FlagNewInfo",false);
+  
+    }
+	
+	if(fb.getBool("FlagMoveServo")){ 
+
+		cc=fb.getInt("ServoUpdateFlag"); 
+
         for (i=0; i < 27; i++){ 
             if((cc & (0b1<<i))==(0b1<<i)){
-				targetPosition[i]=(uint8_t)fb.getInt("targetPosition/"+String(i));
-            }
-        }
-        for (i=0; i < 27; i++){ /* Move servos */
-            if((cc & (0b1<<i))==(0b1<<i)){
-				if(i<6){
-					//TODO - array con min/step positions!!
-					pwm0.setPWM(i,0,servoMin[i] + servoSteps[i]*targetPosition[i]);delay(10);
-				}else if(i<12){
+				if(i<6){/* LeftHand Servo Controls */
+					pwm0.setPWM(i,0,minServoPos[i]+targetPosition[i]*(maxServoPos[i]-minServoPos[i])/180);delay(10);
+				}else if(i<12){ /* LeftHand Servo Controls */
 					j=i-6;
 					//TODO - RightHand servo control (pwm board 2) - Servos 6-11 (6)
-					// pwm2.setPWM(j,0,targetPosition[i]);delay(10);
-				}else{
+					// pwm2.setPWM(j,0,minServoPos[i]+targetPosition[i]*(maxServoPos[i]-minServoPos[i])/180);delay(10);
+				}else{ /* Body/Head Servo Controls */
 					j=i-12;
 					//TODO - Body servo control (pwm board 1) - Servos 12-26 (15)
-					// pwm1.setPWM(j,0,targetPosition[i]);delay(10);
+					// pwm1.setPWM(j,0,minServoPos[i]+targetPosition[i]*(maxServoPos[i]-minServoPos[i])/180);delay(10);
 				}
             }
         }
-        
-    }
-	// if(fb.getBool(/* TODO UPDATE control code */)){ 
-	// 	//Move the UpdatePositions here Maybe-idk?
-	// }
+
+		fb.setBool("FlagMoveServo",false);
+		fb.setInt("ServoUpdateFlag",0);
+
+	}
     delay(1000);
 
 }
