@@ -2,6 +2,7 @@ package controllers;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Scanner;
@@ -21,98 +22,237 @@ public class FirebaseController {
     private static FirebaseApp firebaseApp;
     private static DatabaseReference database;
     private static DatabaseReference tpRef;
-    private static Map readMap, tmpMap;
-    // private static String url = "https://tfg-500c1-default-rtdb.europe-west1.firebasedatabase.app";
+    private static ArrayList readList, tmpList;
+    private static boolean waitWriting;
+	private static Integer tmpInt;
     
     public FirebaseController(){
         firebaseApp=null;
         database=null;
         tpRef=null;
-        readMap=null;
+        readList=null;
+		tmpInt=null;
+        waitWriting=true;
     }
 
     public void ini() throws IOException{
         if(firebaseApp!=null){if(database==null){database = FirebaseDatabase.getInstance().getReference();}else{return;}}
         Scanner scn = new Scanner(new File("src\\main\\resources\\controllers\\url.txt"));
         String url = scn.nextLine();
-        System.out.println(url);
         FileInputStream serviceAccount=new FileInputStream("src\\main\\resources\\controllers\\serviceAccountKey.json");
         FirebaseOptions options = new FirebaseOptions.Builder()
         .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-        .setDatabaseUrl(url)/* TODO this should be hidden btw */
+        .setDatabaseUrl(url)
         .build();
         firebaseApp = FirebaseApp.initializeApp(options);
         database = FirebaseDatabase.getInstance().getReference();
+        scn.close();
     }
 
     public int setTargetPos(int srvId, int servoAngle) throws InterruptedException{
-        if(srvId<0||srvId>20){return -1;}
+        waitWriting=true;
+        if(srvId<0||srvId>26){return -1;}
         if(servoAngle<0||servoAngle>180){return 1;}
-        
         tpRef=database.child("targetPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("servo"+String.valueOf(srvId),servoAngle);
-        tpRef.updateChildrenAsync(tpUpdt);
-        Thread.sleep(5000);
+        tpUpdt.put(String.valueOf(srvId),servoAngle);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
         return 0;
     }
 
-    /**@Deprecated DO NOT USE THIS, THE MCU SHOULD BE THE ONE UPDATING THE CURRENT POSITIONS */ 
+    public int setMultipleTargetPos(int[] srvId, int[] servoAngle) throws InterruptedException{
+        waitWriting=true;
+        tpRef=database.child("targetPosition");
+        Map<String, Object> tpUpdt=new HashMap<>();
+        short j=0;
+        for (int i : srvId) {
+            if(i<0||i>26){return -1;}
+            if(servoAngle[j]<0||servoAngle[j]>180){return 1;}
+            tpUpdt.put(String.valueOf(i),servoAngle[j]);
+            j++;
+        }
+        
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
+        return 0;
+    }
+
+    /**@Deprecated DO NOT USE THIS, THE MCU SHOULD BE THE ONE UPDATING THE CURRENT POSITIONS. Test only */ 
     public int setCurrentPos(int srvId, int servoAngle) throws InterruptedException{
-        if(srvId<0||srvId>20){return -1;}
+        waitWriting=true;
+        if(srvId<0||srvId>26){return -1;}
         if(servoAngle<0||servoAngle>180){return 1;}
         
         tpRef=database.child("currentPosition");
         Map<String, Object> tpUpdt=new HashMap<>();
-        tpUpdt.put("servo"+String.valueOf(srvId),servoAngle);
+        tpUpdt.put(String.valueOf(srvId),servoAngle);
         tpRef.updateChildrenAsync(tpUpdt);
-        Thread.sleep(5000);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
         return 0;
     }
 
-    public Map getALLCurrentPos() throws InterruptedException{
-        
-        tpRef=database.child("currentPosition");
-        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
+    public int setUpdatePostion() throws InterruptedException{
+        waitWriting=true;
+
+        tpRef=database.getRef();
+        Map<String, Object> tpUpdt=new HashMap<>();
+        tpUpdt.put("FlagMoveServo",true);
+        tpRef.updateChildrenAsync(tpUpdt);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
             @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                // Map<String, Object> o = (Map) dataSnapshot.getValue();
-                // tmpMap=o;
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
             }
-          
-            @Override
-            public void onCancelled(DatabaseError databaseError) {}
-        });
-        do {
+          });
+        do {            
             Thread.sleep(100);
-        } while (tmpMap==null);
-        System.out.println(readMap.toString());
-        readMap=tmpMap;tmpMap=null;
-        return readMap;
-    }
-    public long getCurrentPos(int srvId) throws InterruptedException{
-        if(srvId<0||srvId>20){return -1;}
-        
-        tpRef=database.child("currentPosition");
-        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                // Map<String, Object> o = (Map) dataSnapshot.getValue();
-                // tmpMap=o;
-                tmpMap=(Map<String, Object>) dataSnapshot.getValue();
-            }
-          
-            @Override
-            public void onCancelled(DatabaseError databaseError) {}
-        });
-        do {
-            Thread.sleep(100);
-        } while (tmpMap==null);
-        readMap=tmpMap;tmpMap=null;
-        return (long) readMap.get("servo"+String.valueOf(srvId));
+        } while (waitWriting);waitWriting=true;
+        return 0;
     }
 
+    public int setNewInfo() throws InterruptedException{
+        waitWriting=true;
+
+        tpRef=database.getRef();
+        Map<String, Object> tpUpdt=new HashMap<>();
+        tpUpdt.put("FlagNewInfo",true);
+        tpRef.updateChildrenAsync(tpUpdt);
+        tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+            @Override
+            public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+              if (databaseError != null) {
+                System.out.println("Data could not be saved " + databaseError.getMessage());
+              } 
+              waitWriting=false;
+            }
+          });
+        do {            
+            Thread.sleep(100);
+        } while (waitWriting);waitWriting=true;
+        return 0;
+    }
+
+    public ArrayList getALLCurrentPos() throws InterruptedException{
+        
+        tpRef=database.child("currentPosition");
+        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                tmpList= (ArrayList) dataSnapshot.getValue();
+            }
+          
+            @Override
+            public void onCancelled(DatabaseError databaseError) {}
+        });
+        do {
+            Thread.sleep(100);
+        } while (tmpList==null);
+        readList=tmpList;tmpList=null;
+        return readList;
+    }
+    public long getCurrentPos(int srvId) throws InterruptedException{
+        if(srvId<0||srvId>26){return -1;}
+        return (long) getALLCurrentPos().get(srvId);
+    }
+
+    public ArrayList getALLTargetPos() throws InterruptedException{
+        
+        tpRef=database.child("targetPosition");
+        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                tmpList=(ArrayList) dataSnapshot.getValue();
+            }
+          
+            @Override
+            public void onCancelled(DatabaseError databaseError) {}
+        });
+        do {
+            Thread.sleep(100);
+        } while (tmpList==null);
+        readList=tmpList;tmpList=null;
+        return readList;
+    }
+
+    public long getTargetPos(int srvId) throws InterruptedException{
+        if(srvId<0||srvId>26){return -1;}
+        return (long) getALLTargetPos().get(srvId);
+    }
+
+    public int setServoUpdateFlag(int servoControlFlag) throws InterruptedException{
+      waitWriting=true;
+
+      tpRef=database.getRef();
+      Map<String, Object> tpUpdt=new HashMap<>();
+      tpUpdt.put("ServoUpdateFlag",servoControlFlag);
+      tpRef.updateChildrenAsync(tpUpdt);
+      tpRef.updateChildren(tpUpdt, new DatabaseReference.CompletionListener() {
+          @Override
+          public void onComplete(DatabaseError databaseError, DatabaseReference databaseReference) {
+            if (databaseError != null) {
+              System.out.println("Data could not be saved " + databaseError.getMessage());
+            } 
+            waitWriting=false;
+          }
+        });
+      do {            
+          Thread.sleep(100);
+      } while (waitWriting);waitWriting=true;
+      return 0;
+	}
+
+    public int getServoUpdateFlag() throws InterruptedException{
+		tpRef=database.child("ServoUpdateFlag");
+		tmpInt=null;
+        tpRef.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                tmpInt=((Long) dataSnapshot.getValue()).intValue();
+            }
+          
+            @Override
+            public void onCancelled(DatabaseError databaseError) {}
+        });
+        do {
+            Thread.sleep(100);
+        } while (tmpInt==null);
+        return tmpInt.intValue();
+	}
 
     public void close(){
         firebaseApp.delete();

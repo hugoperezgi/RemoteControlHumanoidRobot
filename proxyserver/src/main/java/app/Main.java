@@ -1,18 +1,31 @@
 package app;
 
-import java.io.IOException;
-import controllers.FirebaseController;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import controllers.ClientHandler;
 
 public class Main {
-    public static void main(String[] args) throws IOException, InterruptedException {      
-        System.out.println("FUKC!");  
-        FirebaseController f = new FirebaseController();
-        System.out.println("FUKC!");  
-        f.ini();
-        System.out.println("FUKC!");  
-        System.out.println(f.setCurrentPos(0,139));
-        System.out.println(f.getCurrentPos(0));
-        System.out.println("FUKC!");  
-        f.close();
+
+    public static boolean shutdown=false;
+
+    public static void main(String[] args) throws Exception {   
+        Main.shutdown=false;
+        ServerSocket s = new ServerSocket();
+        InetSocketAddress serverIPAddr = new InetSocketAddress("10.60.122.206",57573); 
+        // InetSocketAddress serverIPAddr = new InetSocketAddress("192.168.1.164",57573); 
+        s.bind(serverIPAddr); 
+        while (!Main.shutdown){
+            try {
+                ClientHandler clientThread = new ClientHandler(s.accept());
+                clientThread.setDaemon(true);
+                clientThread.start();
+            } catch (Exception e) {
+                System.err.println(".accept() Error");
+                e.printStackTrace();
+            }
+        }
+        ClientHandler.fb.close();
+        s.close();
     }
+
 }
