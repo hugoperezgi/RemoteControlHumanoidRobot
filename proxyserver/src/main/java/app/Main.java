@@ -25,6 +25,7 @@ public class Main {
             }
         }
         ClientHandler.fb.close();
+        s.close();
     }
 
 }
