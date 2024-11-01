@@ -22,6 +22,7 @@ public class ClientHandler extends Thread{
             try {
                 
                 //Get the query
+                byteBuff = new byte[255];
                 sck.getInputStream().read(byteBuff);
                 String s="";
                 for (byte b : byteBuff) {
@@ -31,8 +32,6 @@ public class ClientHandler extends Thread{
 
                 s=s.trim();
 
-                /* TODO */
-                //Check query format (Only Firebase ones tho)
                 //  mALL - moveAll servos - AKA execute movement update
                 // q = "!s-mALL-e!" [!s][mALL][e!]
                 //  SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
@@ -45,8 +44,9 @@ public class ClientHandler extends Thread{
 
 
                 if(!(s.startsWith("!s-")&&s.endsWith("-e!"))){
-                    //TODO Invalid query format
-                    System.out.println("ERROR_INVALIDFORMAT");
+                    //TODO Invalid query format - check for socket disconnect!
+                    System.out.print("ERROR_INVALIDFORMAT 0:");System.out.println(s);
+                    break;
                 }
 
 
@@ -61,33 +61,34 @@ public class ClientHandler extends Thread{
                                 e.printStackTrace();
                             }
                         }
-                        return;
+                        break;
                     case "SRVP":
                         String AKCFlag=updateServoPostitions(Integer.parseInt(s.split("-")[2]),s.split("-")[3]);
-                        System.out.println(AKCFlag);
+                        System.out.println(AKCFlag + " " + s.split("-")[3]);
                         /* TODO ACK back to cli */
-                        return;
+                        break;
                     case "eMOD":
                         if(s.split("-")[2].equals("0")){
                             updateModeRT=false;
-                            /* ACK back to cli */
+                            /* TODO ACK back to cli */
                         }else if(s.split("-")[2].equals("1")){
                             updateModeRT=true;
-                            /* ACK back to cli */
+                            /* TODO ACK back to cli */
                         }
-                        return;
+                        break;
                     case "sOFF": 
                         Main.shutdown=true;
                         try{Thread.sleep(5000);}catch(Exception e){};
                         fb.close();
                         System.exit(0);
-                        return;
-                    default: /* TODO return ERROR_INVALIDFORMAT */System.out.println("ERROR_INVALIDFORMAT");
-                        return;
+                        break;
+                    default: /* TODO return ERROR_INVALIDFORMAT */System.out.println("ERROR_INVALIDFORMAT 1");
+                        break;
                 }
 
                 
             } catch (IOException e) {
+                e.printStackTrace();
                 run=false;
             }
         }
@@ -95,13 +96,6 @@ public class ClientHandler extends Thread{
     }
 
     private String updateServoPostitions(int servoCount, String servoPositions){
-
-        try {
-            fb.setNewInfo();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            return "ERROR_FBCON";
-        }
         String[] sPosA=servoPositions.split("~");
         if(sPosA.length!=servoCount){return "ERROR_INVALIDFORMAT";}
         int[] servoIds=new int[servoCount], servoPos=new int[servoCount];
@@ -135,6 +129,13 @@ public class ClientHandler extends Thread{
             }
     
         }
+        try {
+            fb.setNewInfo();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            return "ERROR_FBCON";
+        }
+        
         return String.valueOf(servoFlag);
     }
 
