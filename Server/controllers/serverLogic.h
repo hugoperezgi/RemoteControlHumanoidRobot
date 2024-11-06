@@ -5,6 +5,10 @@
 #include <iostream>
 
 
+#define BADQUERY 0
+#define MCUHELLOQUERY 1
+#define USRHELLOQUERY 2
+
 class serverLogic{
     private:
         static short mcuSmartMode, updateModeRT;
@@ -26,8 +30,8 @@ class serverLogic{
         serverLogic() = delete;
         ~serverLogic();
 
-        static void initializeServer();
-
+        static int checkLogInQuery(char*);
+        static void checkNodeMCUdcd(SOCKET);
         static short handleQuery(char*, SOCKET);
 };
 
