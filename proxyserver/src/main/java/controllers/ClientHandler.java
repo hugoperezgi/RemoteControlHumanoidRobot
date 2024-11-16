@@ -73,7 +73,6 @@ public class ClientHandler extends Thread{
                             /* TODO ACK back to cli */
                         }else if(s.split("-")[2].equals(Character.toString(101))){
                             updateModeRT=true;
-                            System.out.println("This owrks");
                             /* TODO ACK back to cli */
                         }
                         break;
