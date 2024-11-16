@@ -1,261 +1,158 @@
-
 #include "serverLogic.h"
 #include <cstring>
 
-#define HEADERTXT "!s-"
-#define HEADERLEN 3
-#define TAILTXT "-e!"
-#define TAILLEN 3
-
-
-#define SMART_MCU_MODE 1
-#define PARAM1_POSITION 8
-#define PARAM2_POSITION 10
-
-SOCKET serverLogic::nodeMCU=INVALID_SOCKET;
-bool serverLogic::stateNodeMCU=false;
-
-short serverLogic::mcuSmartMode=SMART_MCU_MODE;
-short serverLogic::updateModeRT=0;
-uint8_t serverLogic::currentServoPositions[15];
-uint8_t serverLogic::targetServoPositions[15];
-double serverLogic::servoStep[15];
-// uint16_t serverLogic::srvPulseLen[15][181];
+uint32_t flag;
 
 
 inline bool checkHeader(std::string query){
     return (query.compare(0,HEADERLEN,HEADERTXT)==0 && query.compare(query.length()-TAILLEN,TAILLEN,TAILTXT)==0);
 }
 
-void serverLogic::handleNodeMCU(SOCKET sck){
-    serverLogic::nodeMCU = sck;
-    QueryGenerator qGen; char* query;
-    stateNodeMCU=true;
-    if(mcuSmartMode){
-
-        for(int i=0;i<16;i++){
-            query=qGen.smrt_currPos(i,currentServoPositions[i]);
-            send(sck,query,(int)strlen(query),0);
-        }
-
-    }
+char* serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo c){
+    if(eMOD==_eMOD_Delayed){c.updateOnRealTime=false;return QueryGenerator().ack(_eMOD_Delayed);}
+    if(eMOD==_eMOD_RealTime){c.updateOnRealTime=true;return QueryGenerator().ack(_eMOD_RealTime);}
+    return QueryGenerator().nack(_NACK_InvalidParameter); 
 }
 
-void serverLogic::checkNodeMCUdcd(SOCKET sck){
-    if(sck==serverLogic::nodeMCU){
-        serverLogic::nodeMCU=INVALID_SOCKET;
-        stateNodeMCU=false;
-    }
-    stateNodeMCU=true;
-}
+char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo c){
 
-void serverLogic::handleClientLogin(SOCKET sck){
+    if(c.mcuInfo.mcuName==nullptr){return QueryGenerator().nack(_NACK_NoActiveMCU);}
 
-    QueryGenerator qGen; uint8_t id; char* query; std::string str="";
-    query=qGen.ack(0);
-    send(sck,query,(int)strlen(query),0);
+    std::string query = "";
+    query.clear();
+    query.append(bquery);
 
-    for(uint8_t i = 0; i < 15; i++){
-        id=i; if(id>=10)id++;
-        sendAgain:
-        query = qGen.servoPos(id,currentServoPositions[i]);
-        send(sck, query, (int)strlen(query),0);
-
-        char rcvB[RCV_BF_LEN]; int j; str.clear(); 
-        do{
-            j=recv(sck,rcvB,RCV_BF_LEN,0);
-            str+=rcvB;
-            memset(rcvB, 0, sizeof rcvB);
-            if(j==0){std::cerr <<"ConnectionClosed";srvCore::rmvSock(sck);return/* Thread dies */;}
-            if(j==SOCKET_ERROR){std::cout << WSAGetLastError();srvCore::rmvSock(sck);return/* Thread dies */;} 
-        } while (j==RCV_BF_LEN && WSAGetLastError()==WSAEMSGSIZE);
-        if(!(checkHeader(str)&&!(str.compare(HEADERLEN,4,"_ACK"))&&str.at(PARAM1_POSITION)==currentServoPositions[id])){
-            /* !s-ACK:<servoPos>-e! expected */
-            goto sendAgain;
-        }
-
+    /* [!s]-[SRVP]-[number of servos to update]-[servoid:servopos~servoid:servopos]-[e!] */
+    /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((4*NumOfServos)-1) */
+    uint8_t numServ=query.at(8);
+    uint8_t tmpID=0;
+    query=query.substr(10,(4*numServ)-1);
+    for (size_t i = 0; i < numServ; i++){
+        tmpID=query.at(i*4);
+        flag|=(0b1<<tmpID); 
+        c.mcuInfo.targetPositions[tmpID]=query.at(2+numServ*4);
     }
     
-    return/* Thread dies */;
-}
-
-void serverLogic::dispatchMCUM(SOCKET sck,uint8_t mCUM){
-    
-    if(mCUM>1){std::cout<<"Not a valid mode";return;}
     QueryGenerator q;
-    mcuSmartMode=mCUM;
-    char* query=q.ack(mcuSmartMode);
-    send(sck,query,strlen(query),0);
-    return /* Thread dies */;
+    std::string rq=nullptr;
 
-}
-
-void serverLogic::dispatchEMOD(SOCKET sck, uint8_t eMOD){
-    
-    if(eMOD>1){std::cout<<"Not a valid mode";return;}
-    QueryGenerator q;
-    updateModeRT=eMOD;
-    char* query = q.ack(updateModeRT);
-    send(sck,query,strlen(query),0);
-    return /* Thread dies */;
-    
-}
-
-void serverLogic::dispatchSRVP(SOCKET sck,uint8_t id,uint8_t pos){
-
-    QueryGenerator q; char* query;
-    
-    if(updateModeRT){
-        /* Update on Real time (1) */
-
-        //update both current&target servoPos arrays
-        currentServoPositions[id]=pos;
-        targetServoPositions[id]=pos;
+    if(c.updateOnRealTime){
         
-        if(mcuSmartMode){
-            /* Smart mode (1) */
-            if(id>=10)id++;
-            query = q.smrt_mvServo(id,pos);
-            send(nodeMCU, query, strlen(query),0);
-
+        /* RealTime mode */
+        if(c.mcuInfo.smartMCU){
+            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_mvServo(flag,c.mcuInfo.targetPositions));
         }else{
-            /* Dumb mode (0) */
-
-            uint16_t mask = 0; uint8_t idq=0;
-
-            while(mask!=32767){
-                for(int id=0;id<15;id++){
-                    if(currentServoPositions[id]==targetServoPositions[id]){
-                        (mask |= (1<<id));
-                        continue;
-                    }else{
-                        currentServoPositions[id]<targetServoPositions[id] ? currentServoPositions[id]<(targetServoPositions[id]-1) ? currentServoPositions[id]+=2 : currentServoPositions[id]++ : currentServoPositions[id]>(targetServoPositions[id]+1) ? currentServoPositions[id]-=2 : currentServoPositions[id]--;                                             
-                        idq=id;
-                        if(idq>=10)idq++;
-                        query = q.dmb_mvServo(id,currentServoPositions[id]);
-                        send(sck,query,strlen(query),0);
-                    }
-                }
-            }
-        }    
-        
+            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.dmb_mvServo(flag,c.mcuInfo.targetPositions,c.mcuInfo.servos_MIN_MAX));
+        }
+        flag=0;
 
     }else{
         /* Non-RT/Delayed mode */
 
-        //update target servoPos arrays
-        targetServoPositions[id]=pos;
-
-        if(mcuSmartMode){
-            /* Smart mode (1) */
-
-            if(id>=10)id++;
-            query=q.smrt_updtServo(id,pos);
-            send(sck, query, strlen(query),0);
+        if(c.mcuInfo.smartMCU){
+            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_updtServo(flag,c.mcuInfo.targetPositions));
+            flag=0;
         }    
     }
-
-    //ACK back to client with pos
-    query=q.ack(pos);
-    send(sck,query,strlen(query),0);
-
-    return /* Thread dies */;
+    if((!strcmp(&rq[0],"E404"))||(!strcmp(&rq[0],"DCd_MCU"))){return q.nack(_NACK_NoActiveMCU);}
+    return q.ack(_ACK_Generic);/* ACK query back to client*/
 }
 
-void serverLogic::dispatchMALL(SOCKET sck){
+char* serverLogic::dispatchMALL(ControllerInfo c){
+
+    if(c.mcuInfo.mcuName==nullptr){return QueryGenerator().nack(_NACK_NoActiveMCU);}
 
     QueryGenerator q;
-    char* query;
+    std::string query=nullptr;
 
-    if(mcuSmartMode){
+    if(c.updateOnRealTime){return QueryGenerator().nack(_NACK_OnRTMode);}
+
+    if(c.mcuInfo.smartMCU){
         /* Smart mode */
-        query=q.smrt_mvAll();
-        send(nodeMCU,query,strlen(query),0);
+        query=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_mvAll());
     }else{
         /* Dumb mode */
-        
-        uint16_t mask = 0; uint8_t idq=0;
-
-        while(mask!=0b111111111111111){
-            for(int id=0;id<15;id++){
-                if(currentServoPositions[id]==targetServoPositions[id]){
-                    (mask |= (1<<id));
-                    continue;
-                }else{
-                    currentServoPositions[id]<targetServoPositions[id] ? currentServoPositions[id]<(targetServoPositions[id]-1) ? currentServoPositions[id]+=2 : currentServoPositions[id]++ : currentServoPositions[id]>(targetServoPositions[id]+1) ? currentServoPositions[id]-=2 : currentServoPositions[id]--;                                             
-                    idq=id;
-                    if(idq>=10)idq++;
-                    // query = q.dmb_mvServo(idq,srvPulseLen[id][currentServoPositions[id]]);
-                    send(sck,query,strlen(query),0);
-                }
-            }
-        }
+        query=srvCore::contactMCU(c.mcuInfo.mcuName,q.dmb_mvServo(flag,c.mcuInfo.targetPositions,c.mcuInfo.servos_MIN_MAX));
+        flag=0;
     }
-
-    query=q.ack(0);
-    send(sck,query,strlen(query),0);
-
-    return /* Thread dies */;
+    if((!strcmp(&query[0],"E404"))||(!strcmp(&query[0],"DCd_MCU"))){return q.nack(_NACK_NoActiveMCU);}
+    return q.ack(_ACK_Generic);
 }
 
-short serverLogic::handleQuery(char* q, SOCKET sck){
+int serverLogic::checkLogInQuery(std::string q){
+    if(q.compare(HEADERLEN,12,"NodeMCU_here")==0){return MCUHELLOQUERY;}
+    if(q.compare(HEADERLEN,11,"Client_here")==0){return USRHELLOQUERY;}
+    return BADQUERY;
+}
 
-    std::string query = "";
-    query.clear();
-    query.append(q);
-    // std::cout<<query<<"\n";
+RobotInformation serverLogic::getQueryInformation(std::string q){
+    /* !s-NodeMCU_here-[info]-e! */
+
+    char* tmp=new char[strlen(q.data())-18];
+    memcpy(tmp,q.data()+16,strlen(tmp));
+
+    /* [info] mcuName-<servocount>-<pos0>-<pos1>...*/
+    auto i=strcspn(tmp,"-");
+    if(i==strlen(tmp)){return RobotInformation(tmp,false);}   
+    char tmpName[i+1]; memcpy(tmpName,tmp,i); tmpName[i]=0;
+    uint8_t* tmpPos = new uint8_t[tmp[i+1]];
+    for (size_t j = 0; j < tmp[i+1]; j++){
+        tmpPos[j]=tmp[i+3+(2*j)];
+    }
+    
+    return RobotInformation(tmpName,tmpPos,true);
+}
+
+void serverLogic::handleQuery(std::string q, ControllerInfo c){
 
     /* !s-<query body>-e! */
         
         /* <QueryType>:<param1>-<param2> */
 
         /* Query Type */
-        //  NodeMCU_here - hello from nodeMCU board, no extra params
+        // sOFF - Server off
+
+        //  NodeMCU_here - hello from nodeMCU board, +info
         //  Client_here - hello from client, no extra params
+
         //  _ACK - ok msg, param1 expected
-        //  MCUM - mcuSmartMode(Smart/Dumb), param1 expected (0-Dumb, 1-Smart)
-        //  eMOD - updateModeRT(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
+        //  NACK - error msg, param1 expected
+
+        //  eMOD - updateModeRT(RT/delayed), param1 expected (1-Delayed, 2-RealTime)
         //  SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
         //  mALL - moveAll servos - AKA execute movement update
 
+
         /* param1 */
         //  param1=ACK code for ACK query
-        //  param1=0/1 for mcuSmartMode and updateModeRT queries
+        //  param1=1/2 for updateModeRT queries
         //  param1=servoID for changeServoPosition query
 
-    if(checkHeader(query)){
-        /* Query is correct format */
-        if(query.compare(HEADERLEN,12,"NodeMCU_here")==0){
-            /* NodeMCU connection -> Register the socket and tell it the current position of servos */
+    char* qr = QueryGenerator().nack(_NACK_InvalidQuery);
+    if(checkHeader(q)){
 
-            handleNodeMCU(sck);
-            return 0;
+        char* code = new char[5];
+        memcpy(code,q.data()+3,4);
+        code[4]=0;
+        //Retrocompatibility with firebase client
+        if(!strcmp(code,"SRVP")){delete code;qr=dispatchSRVP(q.data(),c);}
+        /* !s-SRVP-<Number of servos to update>-<servoid>:<position>-e! -> [!s][SRVP][number of servos to update][servoid:servopos~servoid:servopos][e!] */
+        if(!strcmp(code,"eMOD")){delete code;qr=dispatchEMOD(q.at(PARAM1_POSITION),c);}
+        /* !s-eMOD-0/1-e! ~ Used to change from Realtime updates to delayed mode */
+        if(!strcmp(code,"mALL")){delete code;qr=dispatchMALL(c);} 
+        /* !s-mALL-e! ~ IF on delayed mode, execute target movements */
+        if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
+        /* !s-mALL-e! ~ Shutdown server */
 
-        }else if(query.compare(HEADERLEN,11,"Client_here")==0){
-            /* Client connection -> Send current servo position data */
-            
-            handleClientLogin(sck);
-            return 0;
-            
-        }else{
-            /* ACK/MCUM/eMOD/SRVP Queries - from client*/
+        //New functionality
+        // if(!strcmp(code,"sMCU")){delete code;/* Swap active MCU */;return 0;}
+        /* !s-sMCU-mcuName-e! ~ Swap active MCU */
+        // if(!strcmp(code,"iMCU")){delete code;/* Get MCU info */;return 0;}
+        /* !s-iMCU-e! ~ Get MCU info */
+        // if(!strcmp(code,"uINF")){delete code;/* Upload MCU info */;return 0;}
+        /* !s-uINF-[data]-e! ~ Upload MCU info */
 
-            char code[5];
-            code[5]=0;
-            memcpy(code,query.data()+3,4);
-
-            if(!strcmp(code,"MCUM")){dispatchMCUM(sck,query.at(PARAM1_POSITION));return 0;}
-            if(!strcmp(code,"eMOD")){dispatchEMOD(sck,query.at(PARAM1_POSITION));return 0;}
-            if(!strcmp(code,"SRVP")){dispatchSRVP(sck,query.at(PARAM1_POSITION),query.at(PARAM2_POSITION));return 0;}
-            if(!strcmp(code,"mALL")){dispatchMALL(sck);return 0;} 
-            return 1;
-
-        }
-
-
-    }else{
-        /* Shiet happens */
-        return 1;
     }
-
+    send(c.controllerSCK,qr,strlen(qr), 0);
+    return;
 }

@@ -2,116 +2,132 @@
 #include <fstream>
 #include <thread>
 
-// FD_SET srvCore::allSCK;
+FD_SET srvCore::allSCK;
 std::mutex srvCore::mtx;
 bool srvCore::srvUp;
+std::vector<MCUSocket> srvCore::MCUSCK;
+std::vector<ControllerInfo> srvCore::ActiveControllers;
+
+void srvCore::writeToLog(char* s){
+    std::ofstream file;
+    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
+    char timeBuffer[20]; 
+    std::time_t t = std::time(nullptr);
+    std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
+    file << "\n[" << timeBuffer << "] "<<s;
+    if(!strcmp(s,"WSA Error")){file << "Error code: " << WSAGetLastError();}
+}
 
 srvCore::srvCore(char* ipAddress, int port){
     srvCore::srvUp=true;
-    if(WSAStartup(MAKEWORD(2, 2), &wsaData)!=NO_ERROR){WSACleanup();std::cerr <<"WSA_Error";return;}
+    this->MCUSCK.reserve(2);this->ActiveControllers.reserve(2);
+    if(WSAStartup(MAKEWORD(2, 2), &wsaData)!=NO_ERROR){WSACleanup();writeToLog("WSA_Error");srvCore::srvUp=false;return;}
     sckListen = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
-    if(sckListen==INVALID_SOCKET){WSACleanup();std::cerr <<"Socket_Error";return;}
+    if(sckListen==INVALID_SOCKET){WSACleanup();writeToLog("SocketError");srvCore::srvUp=false;return;}
     srvAddr.sin_family = AF_INET;
     srvAddr.sin_addr.s_addr = inet_addr(ipAddress);
     srvAddr.sin_port = htons(port);
-    if(bind(sckListen,(SOCKADDR *) &srvAddr,sizeof srvAddr) == SOCKET_ERROR){closesocket(sckListen);sckListen = INVALID_SOCKET;WSACleanup();std::cout <<"Bind_Error";return;}
-    if(listen(sckListen,5)==SOCKET_ERROR){closesocket(sckListen);sckListen = INVALID_SOCKET;WSACleanup();std::cerr <<"ListenError";return;}
+    if(bind(sckListen,(SOCKADDR *) &srvAddr,sizeof srvAddr) == SOCKET_ERROR){closesocket(sckListen);sckListen = INVALID_SOCKET;WSACleanup();writeToLog("BindError");srvCore::srvUp=false;return;}
+    if(listen(sckListen,5)==SOCKET_ERROR){closesocket(sckListen);sckListen = INVALID_SOCKET;WSACleanup();writeToLog("ListenError");srvCore::srvUp=false;return;}
         // Use backlog == SOMAXCONN for >>> client connections, else keep low (dont waste resources)
-    // FD_ZERO(&allSCK);
-    // FD_SET(sckListen,&allSCK);
+    FD_ZERO(&allSCK);
+    FD_SET(sckListen,&allSCK);
+    writeToLog("Server Up");
 }
 
 srvCore::~srvCore(){
-    // closeSockets();
+    MCUSCK.clear();
+    ActiveControllers.clear();
     WSACleanup();
+    writeToLog("Server Shutdown");
     Sleep(250);
-    std::cerr<<"Server Out!";
 }
 
-// void srvCore::getNewClient(){
-//     SOCKET s = accept(sckListen,NULL,NULL);
-//     if(s==INVALID_SOCKET){std::cerr << "AcceptError";return;}
-//     FD_SET(s,&allSCK);
-// }
-
-/*this->rmvSock(sck); //Remove the socket if client dc'd*/
-// void srvCore::rmvSock(SOCKET s){
-//     mtx.lock();
-//     FD_CLR(s,&allSCK);
-//     closesocket(s);
-//     mtx.unlock();
-// }
-// void srvCore::rmvSockCheckMCU(SOCKET s){
-    
-//     serverLogic::checkNodeMCUdcd(s);
-//     srvCore::rmvSock(s);
-    
-// }
-
-void srvCore::mcuHandler(char* info, SOCKET s){
-    new ClientSocket(s,"Name");
-    // Add to socket list -> check resize if full
-
-    // RobotCalibration class -> Stores the robot info Name+Servo(min/max/current) -> Stored on db
+void srvCore::rmvSock(SOCKET s){
+    mtx.lock();
+    FD_CLR(s,&allSCK);
+    rmvSockfromVectors(s);
+    closesocket(s);
+    mtx.unlock();
+}
+void srvCore::rmvSockfromVectors(SOCKET s){
+    for (auto it=MCUSCK.begin();it<MCUSCK.end();it++){
+        if((*it).sck==s){MCUSCK.erase(it); return;}
+    }    
+    for (auto it=ActiveControllers.begin();it<ActiveControllers.end();it++){
+        if((*it).controllerSCK==s){ActiveControllers.erase(it); return;}
+    }        
 }
 
-void srvCore::userHandler(SOCKET sck){
-    //TODO the whole "dedicated thread" for client 
-
-    /* check server shutdown variable -> deal with it if needed */
+void srvCore::mcuLogIn(RobotInformation info, SOCKET s){
+    MCUSCK.push_back(MCUSocket(s,info.mcuName));
+    // TODO Stores the robot info Name+Servo(current) -> on db
 }
 
-void srvCore::cliHandler(SOCKET s){
+void srvCore::usrLogIn(SOCKET s){
+    FD_SET(s,&allSCK);
+    ActiveControllers.push_back(ControllerInfo(s,RobotInformation(),true));
+}
 
+std::string srvCore::readSocket(SOCKET s){
     int i;
     char rcvB[RCV_BF_LEN];
     std::string str = "";
     memset(rcvB, 0, sizeof rcvB);
 
-
     std::ofstream file;
-    file.open("logger",std::ofstream::out|std::ofstream::app);
+    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
 
-    file << "\n[" << std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()) << "] ";
+    char timeBuffer[20]; 
+    std::time_t t = std::time(nullptr);
+    std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
 
     do{
         i=recv(s,rcvB,RCV_BF_LEN,0);
-        file << rcvB;
+            if(i==0){writeToLog("Connection Closed");rmvSock(s);return "DC";}
         str+=rcvB;
         memset(rcvB, 0, sizeof rcvB);
-        if(i==0){std::cerr <<"ConnectionClosed";closesocket(s);return;}
         /* https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2 */
-        if(i==SOCKET_ERROR){std::cout << WSAGetLastError();closesocket(s);return;} 
+        if(i==SOCKET_ERROR){writeToLog("WSA Error");rmvSock(s);return "WSAERR";} 
     } while (i==RCV_BF_LEN && WSAGetLastError()==WSAEMSGSIZE);
 
+    file << "\n[" << timeBuffer << "] New query -> " << str;
     file.close();
+    return str;
+}
 
-    //Shutdown Query /* TODO maybe add an admin password? */
-    if(str=="!ShutDownServer"){
-        srvCore::srvUp=false;
+/* \return (char*) "DCd_MCU" if the Socket closes the connection or "E404" if mcuName cannot be found */
+std::string srvCore::contactMCU(char* mcuName, char* query){
+    for(auto s:MCUSCK){
+        if(s.name==mcuName){
+            if(send(s.sck, query, strlen(query),0)==SOCKET_ERROR){writeToLog("Connection Closed - MCU");rmvSock(s.sck);return "DCd_MCU";}
+            return readSocket(s.sck);
+        }
     }
-    // else{
-    //     std::cerr << str << "\n";
-    // }
+    return "E404";
+}
 
-    // new std::thread(serverLogic::handleQuery,str.data(),s);
+void srvCore::userHandler(SOCKET s){
 
-    // Check format + Check if MCU/Users
+    std::string str = readSocket(s);
+    for(auto c:ActiveControllers){
+        if(c.controllerSCK==s){
+            new std::thread(serverLogic::handleQuery,str,c);
+        }
+    }
 
-    //TODO create a serverLogic::parseQueryInfo() -> abuse auto info type so it can be reused for all queries?
-    switch(serverLogic::checkLogInQuery(str.data())){
+}
+
+void srvCore::cliHandler(SOCKET s){
+
+    std::string str;
+    str = readSocket(s); 
+    switch(serverLogic::checkLogInQuery(str)){
         case MCUHELLOQUERY:
-            /* TODO 
-                check if current positions are given
-                check mcu name [db check]  
-                ???
-                log the mcu into MCU sock Array
-            */
-            //mcuHandler();
+            mcuLogIn(serverLogic::getQueryInformation(str),s);
             break;
         case USRHELLOQUERY:
-            /* HUGE - TODO */
-            //userHandler();
+            usrLogIn(s);
             break;
         case BADQUERY: //intended chain
         default:
@@ -122,67 +138,51 @@ void srvCore::cliHandler(SOCKET s){
 }
 
 void srvCore::runServer(){
-    srvCore::srvUp=true;
+
     while (srvCore::srvUp){
 
-        // Accept a new client connection
-        SOCKET s = accept(sckListen,NULL,NULL);
-        if(s==INVALID_SOCKET){std::cerr << "AcceptError";return;}
-
-        // Handle the client (UserController / MCU)
-        new std::thread(cliHandler,s);
-
-        // //Fill the sock list that select will modify
-        // FD_ZERO(&rSCK);
-        // memcpy(&rSCK,&allSCK,sizeof allSCK);
+        //Fill the sock list that select will modify
+        FD_ZERO(&rSCK);
+        memcpy(&rSCK,&allSCK,sizeof allSCK);
         
-        // //Give the sck list to select
-        // switch (select(0,&rSCK,NULL,NULL,NULL)){
-        //     case -1:
-        //         /* Select Error - handle it? */
-        //         break;
-        //     case 0:
-        //         /* Timeout - Shoould never happen as timeout is set to NULL */
-        //         break;
-        //     default:
-        //         /* At least 1 sck is ready to accept/read */
+        timeval timeout; timeout.tv_sec = 10; timeout.tv_usec = 0;
+        //Give the sck list to select
+        switch (select(0,&rSCK,NULL,NULL,&timeout)){
+            case -1:
+                /* Select Error - handle it? */
+                break;
+            case 0:
+                /* Timeout - Shoould happen every 10s, used to check if shutdown was issued */
+                break;
+            default:
+                /* At least 1 sck is ready to accept/read */
 
-        //         for (int i=0; i<rSCK.fd_count; i++){
-        //             SOCKET sck = rSCK.fd_array[i];
-        //             //Iterate through all the sockets ready to accept/read
+                // for(auto &&sck : rSCK.fd_array){}
+                
+                for (int i=0; i<rSCK.fd_count; i++){
+                    SOCKET sck = rSCK.fd_array[i];
+                    //Iterate through all the sockets ready to accept/read
 
-        //             FD_CLR(sck,&rSCK);//Remove the sck being handled from the list 
+                    FD_CLR(sck,&rSCK);//Remove the sck being handled from the list 
 
-        //             if(sck==sckListen){
-        //                 //Main socket - Accept new connection
-        //                 this->getNewClient();
-        //             }else{
-        //                 //Client socket - Handle it
-        //                 cliHandler(sck);
-        //             }
+                    if(sck==sckListen){
+                        //Main socket - Accept new connection
+                        SOCKET s = accept(sckListen,NULL,NULL);
+                        if(s==INVALID_SOCKET){writeToLog("Accept Error");return;}
+                        cliHandler(s);
+                    }else{
+                        //Client Controller (AKA User) socket - Handle it
+                        userHandler(sck);
+                    }
                     
-        //             if(rSCK.fd_count==0)break;
-        //                 //Check whether all rdy sockets were handled
-        //         }
+                    if(rSCK.fd_count==0)break;
+                        //Check whether all rdy sockets were handled
+                }
 
-        //         break;
-        // }
+                break;
+        }
 
     }
-    
 
 }
 
-
-// void srvCore::closeSockets(){
-//     int j=0;
-//     for (auto &&i : allSCK.fd_array){
-        
-//         shutdown(i, SD_RECEIVE);
-//         send(i,"ServerShutdown",(int)strlen("ServerShutdown"), 0);
-//         closesocket(i);
-
-//         j++;
-//         if(j==allSCK.fd_count)break;
-//     }
-// }

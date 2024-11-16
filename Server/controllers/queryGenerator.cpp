@@ -16,7 +16,6 @@ QueryGenerator::~QueryGenerator(){
         //  NodeMCU_here - hello from nodeMCU board, no extra params
         //  Client_here - hello from client, no extra params
         //  _ACK - ok msg, param1 expected
-        //  MCUM - mcuMode(Smart/Dumb), param1 expected (0-Dumb, 1-Smart)
         //  eMOD - updateMode(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
         //  SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
 
@@ -27,22 +26,28 @@ QueryGenerator::~QueryGenerator(){
 
 
 char* QueryGenerator::ack(uint8_t code){
-    std::string q = "!s-_ACK:";q+=code;q+="-e!";
+    std::string q = "!s-_ACK:0-e!";
+    q.replace(8,1,1,code);
     return q.data();
 }
-
-/*Either smart mode (mode=1) or dumb mode (mode=0)*/
-char* QueryGenerator::mcuMode(char mode){
-    std::string q = "!s-MCUM:";q+=mode;q+="-e!";
+char* QueryGenerator::nack(uint8_t code){
+    std::string q = "!s-NACK:0-e!";
+    q.replace(8,1,1,code);
     return q.data();
 }
-/*Either RT mode(mode=1) or non-RT mode (mode=0)*/
-char* QueryGenerator::updateMode(char mode){
-    std::string q = "!s-eMOD:";q+=mode;q+="-e!";
-    return q.data();
-}
-char* QueryGenerator::servoPos(uint8_t id,uint8_t pos){
-    std::string q = "!s-SRVP:";q+=id;q+="-";q+=pos;q+="-e!";
+char* QueryGenerator::servoPos(uint32_t flag, uint8_t* pos){
+    /* [!s]-[SRVP]-[number of servos to update]-[servoid:servopos~servoid:servopos]-[e!] */
+    /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((4*NumOfServos)-1) */
+    std::string q = "!s-SRVP-0-";
+    uint8_t count=0;
+    for (size_t i = 0; i < 27; i++){
+        if(flag&(0b1<<i)==(0b1<<i)){
+            count++;
+            q+=i;q+=":";q+=pos[i];q+="-";
+        }
+    }
+    q.replace(8,1,1,count);
+    q+="e!";
     return q.data();
 }
 
@@ -72,25 +77,53 @@ char* QueryGenerator::divideIntoBytes(uint16_t u){
 
 /* Dumb functions - MCU*/
 
-char* QueryGenerator::dmb_mvServo(uint8_t id, uint16_t pos){
-    std::string q = "-m-s:";q+=id;q+="-p:";q+=divideIntoBytes(pos);q+="-!";
+char* QueryGenerator::dmb_mvServo(uint32_t flag, uint8_t* pos, uint16_t** minmax){
+    std::string q = "-m-0-";
+    uint8_t count=0;
+    for (size_t i = 0; i < 27; i++){
+        if(flag&(0b1<<i)==(0b1<<i)){
+            count++;
+            q+=i;q+=":";q+=divideIntoBytes(pos[i]*((minmax[1][i]-minmax[0][i])/180));q+="-";
+        }
+    }
+    q+="!";
+    q.replace(3,1,1,count);
     return q.data();
 }
 
 /* Smart functions - MCU */
 
-char* QueryGenerator::smrt_mvServo(uint8_t id, uint8_t pos){
-    std::string q = "-m-s:";q+=id;q+="-p:";q+=pos;q+="-!";
+/* -m-<ServoCount>-<ServoId1>:<ServoPos>-<ServoId2>:<ServoPos>[-...]-! */
+char* QueryGenerator::smrt_mvServo(uint32_t flag, uint8_t* pos){
+    std::string q = "-m-0-";
+    uint8_t count=0;
+    for (size_t i = 0; i < 27; i++){
+        if(flag&(0b1<<i)==(0b1<<i)){
+            count++;
+            q+=i;q+=":";q+=pos[i];q+="-";
+        }
+    }
+    q+="!";
+    q.replace(3,1,1,count);
     return q.data();
 }
 char* QueryGenerator::smrt_mvAll(){
     return "-e-!";
 }
-char* QueryGenerator::smrt_updtServo(uint8_t id, uint8_t pos){
-    std::string q = "-u-s:";q+=id;q+="-p:";q+=pos;q+="-!";
+char* QueryGenerator::smrt_updtServo(uint32_t flag, uint8_t* pos){
+    std::string q = "-u-0-";
+    uint8_t count=0;
+    for (size_t i = 0; i < 27; i++){
+        if(flag&(0b1<<i)==(0b1<<i)){
+            count++;
+            q+=i;q+=":";q+=pos[i];q+="-";
+        }
+    }
+    q+="!";
+    q.replace(3,1,1,count);
     return q.data();
 }
 char* QueryGenerator::smrt_currPos(uint8_t id, uint8_t pos){
-    std::string q = "-c-s:";q+=id;q+="-p:";q+=pos;q+="-!";
+    std::string q = "-c-s:";//q+=id;q+="-p:";q+=pos;q+="-!";
     return q.data();
 }

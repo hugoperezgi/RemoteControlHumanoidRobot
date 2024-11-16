@@ -9,12 +9,14 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <mutex>
+#include <vector>
 
-#include <chrono>
 #include <ctime> 
 
+#include "robotInformation.h"
+#include "controllerInfo.h"
 #include "serverLogic.h"
-#include "clientSocket.h"
+#include "mcuSocket.h"
 
 #ifndef RCV_BF_LEN
 #define RCV_BF_LEN 1492
@@ -28,20 +30,25 @@ class srvCore{
         sockaddr_in srvAddr;
         char* s;
         WSADATA wsaData;        
-        // FD_SET rSCK;
-        // static FD_SET allSCK;
-        static ClientSocket* mcuSCK;
+        FD_SET rSCK;
+        static FD_SET allSCK;
+        /* Vector containing all mcu's connected to the server */
+        static std::vector<MCUSocket> MCUSCK;
+        /* Vector containing all controller client connected to the server */
+        static std::vector<ControllerInfo> ActiveControllers;
         static void cliHandler(SOCKET);
-        static void mcuHandler(char*,SOCKET);
+        static void mcuLogIn(RobotInformation,SOCKET);
+        static void usrLogIn(SOCKET);
         static void userHandler(SOCKET);
-        // static void closeSockets();
+        static std::string readSocket(SOCKET);
+        static void rmvSockfromVectors(SOCKET);
+        static void writeToLog(char*);
     public:
         static bool srvUp;
         srvCore(char*, int);
         ~srvCore();
         void runServer();
-        // static void rmvSock(SOCKET);
-        // void getNewClient();
-        // static void rmvSockCheckMCU(SOCKET);
+        static void rmvSock(SOCKET);
+        static std::string contactMCU(char*,char*);
 
 };

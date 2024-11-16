@@ -6,9 +6,10 @@
 #include <iostream>
 
 
-class ClientSocket{
+class MCUSocket{
     public:
         SOCKET sck;
         char* name;
-        ClientSocket(SOCKET,char*);
+        MCUSocket(SOCKET,char*);
+        MCUSocket();
 };

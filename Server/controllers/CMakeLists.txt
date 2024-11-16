@@ -5,7 +5,9 @@ project(ArmControlServer)
 add_library(ControllersLib
     queryGenerator.cpp
     serverLogic.cpp
-    clientSocket.cpp
+    mcuSocket.cpp
+    robotInformation.cpp
+    controllerInfo.cpp
     srvCore.cpp  srvCore.h
 )
 

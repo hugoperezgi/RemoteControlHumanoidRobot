@@ -9,29 +9,29 @@
 #define MCUHELLOQUERY 1
 #define USRHELLOQUERY 2
 
+
+
+#define HEADERTXT "!s-"
+#define HEADERLEN 3
+#define TAILTXT "-e!"
+#define TAILLEN 3
+
+#define PARAM1_POSITION 8
+#define PARAM2_POSITION 10
+
 class serverLogic{
     private:
-        static short mcuSmartMode, updateModeRT;
-        static uint8_t currentServoPositions[15], targetServoPositions[15];
-        static double servoStep[15];
 
-        static SOCKET nodeMCU;
-        static bool stateNodeMCU;
-
-        static void handleNodeMCU(SOCKET);
-        static void handleClientLogin(SOCKET);
-
-        static void dispatchMCUM(SOCKET,uint8_t);
-        static void dispatchEMOD(SOCKET,uint8_t);
-        static void dispatchSRVP(SOCKET,uint8_t,uint8_t);
-        static void dispatchMALL(SOCKET);
+        static char* dispatchEMOD(uint8_t,ControllerInfo);
+        static char* dispatchSRVP(char*,ControllerInfo);
+        static char* dispatchMALL(ControllerInfo);
 
     public:
         serverLogic() = delete;
         ~serverLogic();
 
-        static int checkLogInQuery(char*);
-        static void checkNodeMCUdcd(SOCKET);
-        static short handleQuery(char*, SOCKET);
+        static int checkLogInQuery(std::string);
+        static RobotInformation getQueryInformation(std::string);
+        static void handleQuery(std::string,ControllerInfo);
 };
 
