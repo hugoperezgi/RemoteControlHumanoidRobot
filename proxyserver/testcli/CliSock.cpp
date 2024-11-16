@@ -10,7 +10,7 @@
 
 class CliSock{
     private:
-        static int i;
+        int i=0;
         int sck;
         sockaddr_in srvAddr;
         char rcvB[RCV_BF_LEN];
@@ -24,7 +24,6 @@ class CliSock{
         void clearString();
 };
 
-int CliSock::i = 0;
 
 CliSock::CliSock(char* ipAddress, int port){
     initialized = false;
@@ -52,9 +51,11 @@ void CliSock::snd(char* Message){
 }
 
 char* CliSock::rcv() {
-    memset(s, 0, RCV_BF_LEN);
+    s=new char[0];
+    memset(rcvB, 0, sizeof rcvB);
     do{
         i = recv(sck, rcvB, RCV_BF_LEN, 0);
+        std::cout << "RCV: " << rcvB <<"\n";
         strcat(s, rcvB);
         memset(rcvB, 0, sizeof rcvB);
         if(i == 0){std::cout << "ReceiveError\n";}

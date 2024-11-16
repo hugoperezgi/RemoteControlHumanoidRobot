@@ -40,7 +40,7 @@ public class ClientHandler extends Thread{
                 //  eMOD - updateModeRT(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
                 // q = "!s-eMOD-";q+=mode;q+="-e!"; [!s][SRVP][0/1][e!]
                 //  sOFF - Server off
-                // q = "!s-eMOD-";q+=mode;q+="-e!"; [!s][SRVP][0/1][e!]
+                // q = "!s-sOFF-e!"; 
 
 
                 if(!(s.startsWith("!s-")&&s.endsWith("-e!"))){
@@ -68,11 +68,12 @@ public class ClientHandler extends Thread{
                         /* TODO ACK back to cli */
                         break;
                     case "eMOD":
-                        if(s.split("-")[2].equals("0")){
+                        if(s.split("-")[2].equals(Character.toString(100))){
                             updateModeRT=false;
                             /* TODO ACK back to cli */
-                        }else if(s.split("-")[2].equals("1")){
+                        }else if(s.split("-")[2].equals(Character.toString(101))){
                             updateModeRT=true;
+                            System.out.println("This owrks");
                             /* TODO ACK back to cli */
                         }
                         break;
