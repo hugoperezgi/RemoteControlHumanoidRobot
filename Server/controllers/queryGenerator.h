@@ -8,8 +8,8 @@
 
 #define _ACK_Generic 255
 
-#define _eMOD_RealTime 255
-#define _eMOD_Delayed 254
+#define _eMOD_RealTime 101
+#define _eMOD_Delayed 100
 
 class QueryGenerator{
     private:

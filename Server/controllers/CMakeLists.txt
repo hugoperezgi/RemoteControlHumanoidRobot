@@ -8,6 +8,7 @@ add_library(ControllersLib
     mcuSocket.cpp
     robotInformation.cpp
     controllerInfo.cpp
+    dbman.cpp
     srvCore.cpp  srvCore.h
 )
 

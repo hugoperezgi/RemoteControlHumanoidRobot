@@ -18,3 +18,4 @@ add_subdirectory(test)
 set_target_properties(ArmControlServer PROPERTIES WIN32_EXECUTABLE false)  # keep false to include console output
 target_link_libraries(ArmControlServer ControllersLib)
 target_link_libraries(ArmControlServer ws2_32)
+target_link_libraries(ArmControlServer SQLite3)

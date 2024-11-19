@@ -9,6 +9,7 @@ std::vector<MCUSocket> srvCore::MCUSCK;
 std::vector<ControllerInfo> srvCore::ActiveControllers;
 
 void srvCore::writeToLog(char* s){
+#ifdef LOGGER 
     std::ofstream file;
     file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
     char timeBuffer[20]; 
@@ -16,6 +17,31 @@ void srvCore::writeToLog(char* s){
     std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
     file << "\n[" << timeBuffer << "] "<<s;
     if(!strcmp(s,"WSA Error")){file << "Error code: " << WSAGetLastError();}
+    file.close();
+#endif
+}
+void srvCore::writeToLog(char* s,char* s2 ){
+#ifdef LOGGER 
+    std::ofstream file;
+    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
+    char timeBuffer[20]; 
+    std::time_t t = std::time(nullptr);
+    std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
+    file << "\n[" << timeBuffer << "] "<<s<<" "<<s2;
+    if(!strcmp(s,"WSA Error")){file << "Error code: " << WSAGetLastError();}
+    file.close();
+#endif
+}
+
+void srvCore::setupDB(){
+    char* a;
+    if(!DBMAN::open(&a)){writeToLog("DB Connection Failed");srvCore::srvUp=false;return;}else{writeToLog("DB Connection Success");}
+    switch(DBMAN::setupDB(&a)){
+        case _DBMAN_DB_ALREADYEXIST: break;
+        case _DBMAN_DBCREATED: writeToLog("DB Created");break;
+        case _DBMAN_DBCREATE_ERROR: writeToLog("DB Creation Error:",a);srvCore::srvUp=false;break;
+    }
+    return;
 }
 
 srvCore::srvCore(char* ipAddress, int port){
@@ -33,9 +59,12 @@ srvCore::srvCore(char* ipAddress, int port){
     FD_ZERO(&allSCK);
     FD_SET(sckListen,&allSCK);
     writeToLog("Server Up");
+    setupDB();
 }
 
 srvCore::~srvCore(){
+    DBMAN::close();
+    writeToLog("DB Connection Closed");
     MCUSCK.clear();
     ActiveControllers.clear();
     WSACleanup();

@@ -4,6 +4,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#define LOGGER /* Comment this line to disable logging */
+
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -15,6 +17,7 @@
 
 #include "robotInformation.h"
 #include "controllerInfo.h"
+#include "dbman.h"
 #include "serverLogic.h"
 #include "mcuSocket.h"
 
@@ -43,6 +46,8 @@ class srvCore{
         static std::string readSocket(SOCKET);
         static void rmvSockfromVectors(SOCKET);
         static void writeToLog(char*);
+        static void writeToLog(char*,char*);
+        static void setupDB();
     public:
         static bool srvUp;
         srvCore(char*, int);
