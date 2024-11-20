@@ -1,22 +1,19 @@
 #include "serverLogic.h"
 #include <cstring>
 
-uint32_t flag;
-
-
 inline bool checkHeader(std::string query){
     return (query.compare(0,HEADERLEN,HEADERTXT)==0 && query.compare(query.length()-TAILLEN,TAILLEN,TAILTXT)==0);
 }
 
-char* serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo c){
-    if(eMOD==_eMOD_Delayed){c.updateOnRealTime=false;return QueryGenerator().ack(_eMOD_Delayed);}
-    if(eMOD==_eMOD_RealTime){c.updateOnRealTime=true;return QueryGenerator().ack(_eMOD_RealTime);}
+char* serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo* c){
+    if(eMOD==_eMOD_Delayed){(*c).updateOnRealTime=false;return QueryGenerator().ack(_eMOD_Delayed);}
+    if(eMOD==_eMOD_RealTime){(*c).updateOnRealTime=true;return QueryGenerator().ack(_eMOD_RealTime);}
     return QueryGenerator().nack(_NACK_InvalidParameter); 
 }
 
-char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo c){
+char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
 
-    if(c.mcuInfo.mcuName==nullptr){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
 
     std::string query = "";
     query.clear();
@@ -27,56 +24,80 @@ char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo c){
     uint8_t numServ=query.at(8);
     uint8_t tmpID=0;
     query=query.substr(10,(4*numServ)-1);
+    if((*c).mcuInfo.servoCount!=numServ){return QueryGenerator().nack(_NACK_ServoCountMissmatch);}
+    if((*c).mcuInfo.servos_MIN_MAX.empty() && (!(*c).mcuInfo.smartMCU)){return QueryGenerator().nack(_NACK_NoMCUInfo);}
     for (size_t i = 0; i < numServ; i++){
         tmpID=query.at(i*4);
-        flag|=(0b1<<tmpID); 
-        c.mcuInfo.targetPositions[tmpID]=query.at(2+numServ*4);
+        (*c).mcuInfo.updateFlag|=(0b1<<tmpID); 
+        (*c).mcuInfo.targetPositions[tmpID]=query.at(2+numServ*4);
     }
     
-    QueryGenerator q;
     std::string rq=nullptr;
 
-    if(c.updateOnRealTime){
+    if((*c).updateOnRealTime){
         
         /* RealTime mode */
-        if(c.mcuInfo.smartMCU){
-            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_mvServo(flag,c.mcuInfo.targetPositions));
+        if((*c).mcuInfo.smartMCU){
+            rq=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().smrt_mvServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions));
         }else{
-            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.dmb_mvServo(flag,c.mcuInfo.targetPositions,c.mcuInfo.servos_MIN_MAX));
+            if((*c).mcuInfo.servos_MIN_MAX.empty()){return QueryGenerator().nack(_NACK_NoMCUInfo);}
+            rq=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().dmb_mvServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions,(*c).mcuInfo.servos_MIN_MAX));
         }
-        flag=0;
+        (*c).mcuInfo.updateFlag=0;
 
     }else{
         /* Non-RT/Delayed mode */
 
-        if(c.mcuInfo.smartMCU){
-            rq=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_updtServo(flag,c.mcuInfo.targetPositions));
-            flag=0;
+        if((*c).mcuInfo.smartMCU){
+            rq=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().smrt_updtServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions));
+            (*c).mcuInfo.updateFlag=0;
         }    
     }
-    if((!strcmp(&rq[0],"E404"))||(!strcmp(&rq[0],"DCd_MCU"))){return q.nack(_NACK_NoActiveMCU);}
-    return q.ack(_ACK_Generic);/* ACK query back to client*/
+    if((!strcmp(&rq[0],"E404"))||(!strcmp(&rq[0],"DCd_MCU"))){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    return QueryGenerator().ack(_ACK_Generic);/* ACK query back to client*/
 }
 
-char* serverLogic::dispatchMALL(ControllerInfo c){
+char* serverLogic::dispatchMALL(ControllerInfo* c){
 
-    if(c.mcuInfo.mcuName==nullptr){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
 
-    QueryGenerator q;
     std::string query=nullptr;
 
-    if(c.updateOnRealTime){return QueryGenerator().nack(_NACK_OnRTMode);}
+    if((*c).updateOnRealTime){return QueryGenerator().nack(_NACK_OnRTMode);}
 
-    if(c.mcuInfo.smartMCU){
+    if((*c).mcuInfo.smartMCU){
         /* Smart mode */
-        query=srvCore::contactMCU(c.mcuInfo.mcuName,q.smrt_mvAll());
+        query=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().smrt_mvAll());
     }else{
         /* Dumb mode */
-        query=srvCore::contactMCU(c.mcuInfo.mcuName,q.dmb_mvServo(flag,c.mcuInfo.targetPositions,c.mcuInfo.servos_MIN_MAX));
-        flag=0;
+        if((*c).mcuInfo.servos_MIN_MAX.empty()){return QueryGenerator().nack(_NACK_NoMCUInfo);}
+        if((*c).mcuInfo.updateFlag==0){return QueryGenerator().nack(_NACK_NoMCUInfo);}
+        query=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().dmb_mvServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions,(*c).mcuInfo.servos_MIN_MAX));
+        (*c).mcuInfo.updateFlag=0;
     }
-    if((!strcmp(&query[0],"E404"))||(!strcmp(&query[0],"DCd_MCU"))){return q.nack(_NACK_NoActiveMCU);}
-    return q.ack(_ACK_Generic);
+    if((!strcmp(&query[0],"E404"))||(!strcmp(&query[0],"DCd_MCU"))){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    return QueryGenerator().ack(_ACK_Generic);
+}
+
+char* serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
+    
+    std::string query = "";
+    query.clear();
+    query.append(bquery);
+
+    /* !s-sMCU-[mcuName]-e! */
+    query=query.substr(8,query.size()-11);
+
+    std::cout<<query<<"\n";
+
+    /* TODO - get the mcu information from DB and assign it to the controller */
+    // (*c).mcuInfo=RobotInformation();
+
+
+    // if(!(*c).mcuInfo.mcuName.compare(query)){
+    //     return q.ack(_ACK_Generic);
+    // }
+    return QueryGenerator().nack(_NACK_NoActiveMCU);
 }
 
 int serverLogic::checkLogInQuery(std::string q){
@@ -86,24 +107,33 @@ int serverLogic::checkLogInQuery(std::string q){
 }
 
 RobotInformation serverLogic::getQueryInformation(std::string q){
-    /* !s-NodeMCU_here-[info]-e! */
 
-    char* tmp=new char[strlen(q.data())-18];
-    memcpy(tmp,q.data()+16,strlen(tmp));
+    /* !s-NodeMCU_here-[info]-e! */
+    std::string tmp=q.substr(16,q.size()-19);
+
+    // char* tmp=new char[strlen(q.data())-18];
+    // memcpy(tmp,q.data()+16,strlen(tmp));
 
     /* [info] mcuName-<servocount>-<pos0>-<pos1>...*/
-    auto i=strcspn(tmp,"-");
-    if(i==strlen(tmp)){return RobotInformation(tmp,false);}   
-    char tmpName[i+1]; memcpy(tmpName,tmp,i); tmpName[i]=0;
-    uint8_t* tmpPos = new uint8_t[tmp[i+1]];
-    for (size_t j = 0; j < tmp[i+1]; j++){
-        tmpPos[j]=tmp[i+3+(2*j)];
+        // dumbMCU-<servocount>-<255> {!s-NodeMCU_here-dumbMCU-<servocount>-<255>-e!}
+    auto i=tmp.find('-');
+    if (i == std::string::npos){
+        throw std::invalid_argument("Malformed query string.");
     }
-    
-    return RobotInformation(tmpName,tmpPos,true);
+    std::string mcuName=tmp.substr(0,i);    
+
+    if(tmp.at(i+3)==(char)187){return RobotInformation(mcuName,tmp.at(i+1),false);}
+
+    std::vector<uint8_t> positions;
+    positions.reserve(tmp.at(i+1));
+    for (size_t j = 0; j < tmp.at(i+1); j++){
+        positions.emplace_back(tmp.at(i+3+(2*j)));
+    }
+
+    return RobotInformation(mcuName,tmp.at(i+1),positions,true);
 }
 
-void serverLogic::handleQuery(std::string q, ControllerInfo c){
+void serverLogic::handleQuery(std::string q, ControllerInfo* c){
 
     /* !s-<query body>-e! */
         
@@ -136,23 +166,23 @@ void serverLogic::handleQuery(std::string q, ControllerInfo c){
         code[4]=0;
         //Retrocompatibility with firebase client
         if(!strcmp(code,"SRVP")){delete code;qr=dispatchSRVP(q.data(),c);}
-        /* !s-SRVP-<Number of servos to update>-<servoid>:<position>-e! -> [!s][SRVP][number of servos to update][servoid:servopos~servoid:servopos][e!] */
+            /* !s-SRVP-<Number of servos to update>-<servoid>:<position>-e! -> [!s][SRVP][number of servos to update][servoid:servopos~servoid:servopos][e!] */
         if(!strcmp(code,"eMOD")){delete code;qr=dispatchEMOD(q.at(PARAM1_POSITION),c);}
-        /* !s-eMOD-0/1-e! ~ Used to change from Realtime updates to delayed mode */
+            /* !s-eMOD-[_eMOD_Delayed/_eMOD_RealTime]-e! ~ Used to change from Realtime updates to delayed mode */
         if(!strcmp(code,"mALL")){delete code;qr=dispatchMALL(c);} 
-        /* !s-mALL-e! ~ IF on delayed mode, execute target movements */
-        if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
-        /* !s-mALL-e! ~ Shutdown server */
+            /* !s-mALL-e! ~ IF on delayed mode, execute target movements */
 
         //New functionality
-        // if(!strcmp(code,"sMCU")){delete code;/* Swap active MCU */;return 0;}
-        /* !s-sMCU-mcuName-e! ~ Swap active MCU */
+        if(!strcmp(code,"sMCU")){delete code;qr=dispatchSMCU(q.data(),c);}
+            /* !s-sMCU-mcuName-e! ~ Swap active MCU */
         // if(!strcmp(code,"iMCU")){delete code;/* Get MCU info */;return 0;}
-        /* !s-iMCU-e! ~ Get MCU info */
+            /* !s-iMCU-e! ~ Get MCU info */
         // if(!strcmp(code,"uINF")){delete code;/* Upload MCU info */;return 0;}
-        /* !s-uINF-[data]-e! ~ Upload MCU info */
+            /* !s-uINF-[data]-e! ~ Upload MCU info */
 
+        if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
+        /* !s-mALL-e! ~ Shutdown server */
     }
-    send(c.controllerSCK,qr,strlen(qr), 0);
+    send((*c).controllerSCK,qr,strlen(qr), 0);
     return;
 }

@@ -89,8 +89,23 @@ void srvCore::rmvSockfromVectors(SOCKET s){
 }
 
 void srvCore::mcuLogIn(RobotInformation info, SOCKET s){
-    MCUSCK.push_back(MCUSocket(s,info.mcuName));
-    // TODO Stores the robot info Name+Servo(current) -> on db
+    MCUSCK.push_back(MCUSocket(s,info.mcuName.c_str()));
+    switch(DBMAN::registerMCU(info)){
+        case _DBMAN_NEW_S_MCU:writeToLog("New smartMCU registered:",info.mcuName.data()); break;
+        case _DBMAN_OLD_S_MCU:writeToLog("New smartMCU connected:",info.mcuName.data()); break;
+        case _DBMAN_NEW_D_MCU:writeToLog("New dumbMCU registered:",info.mcuName.data()); break;
+        case _DBMAN_OLD_D_MCU:writeToLog("New dumbMCU connected:",info.mcuName.data()); break;
+        case _DBMAN_ERROR_REGMCU:
+            writeToLog("Unknown error during mcu login - MCU:",info.mcuName.data()); 
+            rmvSock(s);
+            writeToLog("Removed errored mcu connection - MCU:",info.mcuName.data()); 
+            break;
+        case _DBMAN_ERROR_REGSMCU:
+            writeToLog("Error while updating mcu info at login - MCU:",info.mcuName.data()); 
+            rmvSock(s);
+            writeToLog("Removed errored mcu connection - MCU:",info.mcuName.data()); 
+            break;
+    }
 }
 
 void srvCore::usrLogIn(SOCKET s){
@@ -126,7 +141,7 @@ std::string srvCore::readSocket(SOCKET s){
 }
 
 /* \return (char*) "DCd_MCU" if the Socket closes the connection or "E404" if mcuName cannot be found */
-std::string srvCore::contactMCU(char* mcuName, char* query){
+std::string srvCore::contactMCU(const char* mcuName, char* query){
     for(auto s:MCUSCK){
         if(s.name==mcuName){
             if(send(s.sck, query, strlen(query),0)==SOCKET_ERROR){writeToLog("Connection Closed - MCU");rmvSock(s.sck);return "DCd_MCU";}
@@ -139,9 +154,9 @@ std::string srvCore::contactMCU(char* mcuName, char* query){
 void srvCore::userHandler(SOCKET s){
 
     std::string str = readSocket(s);
-    for(auto c:ActiveControllers){
-        if(c.controllerSCK==s){
-            new std::thread(serverLogic::handleQuery,str,c);
+    for(auto i=0;i<ActiveControllers.size();i++){
+        if(ActiveControllers[i].controllerSCK==s){
+            new std::thread(serverLogic::handleQuery,str,&ActiveControllers[i]);
         }
     }
 

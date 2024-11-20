@@ -8,21 +8,24 @@ QueryGenerator::~QueryGenerator(){
 
 /* Client fucntions Query[Server <-> Client]*/
 
-    /* !s-<query body>-e! */
+    /* -- Query format --  
 
-        /* <QueryType>:<param1>-<param2> */
+        !s-<query body>-e!
+        <QueryType>:<param1>-<param2> 
 
-        /* Query Type */
-        //  NodeMCU_here - hello from nodeMCU board, no extra params
-        //  Client_here - hello from client, no extra params
-        //  _ACK - ok msg, param1 expected
-        //  eMOD - updateMode(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
-        //  SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
+        Query Type 
+            NodeMCU_here - hello from nodeMCU board, no extra params
+            Client_here - hello from client, no extra params
+            _ACK - ok msg, param1 expected
+            eMOD - updateMode(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
+            SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
 
-        /* param1 */
-        //  param1=ACK code for ACK query
-        //  param1=0/1 for mcuMode and updateMode queries
-        //  param1=servoID for changeServoPosition query
+        param1 
+            param1=ACK code for ACK query
+            param1=0/1 for mcuMode and updateMode queries
+            param1=servoID for changeServoPosition query
+    
+    */
 
 
 char* QueryGenerator::ack(uint8_t code){
@@ -35,7 +38,7 @@ char* QueryGenerator::nack(uint8_t code){
     q.replace(8,1,1,code);
     return q.data();
 }
-char* QueryGenerator::servoPos(uint32_t flag, uint8_t* pos){
+char* QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
     /* [!s]-[SRVP]-[number of servos to update]-[servoid:servopos~servoid:servopos]-[e!] */
     /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((4*NumOfServos)-1) */
     std::string q = "!s-SRVP-0-";
@@ -77,7 +80,7 @@ char* QueryGenerator::divideIntoBytes(uint16_t u){
 
 /* Dumb functions - MCU*/
 
-char* QueryGenerator::dmb_mvServo(uint32_t flag, uint8_t* pos, uint16_t** minmax){
+char* QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos, std::vector<std::vector<uint16_t>> minmax){
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -94,7 +97,7 @@ char* QueryGenerator::dmb_mvServo(uint32_t flag, uint8_t* pos, uint16_t** minmax
 /* Smart functions - MCU */
 
 /* -m-<ServoCount>-<ServoId1>:<ServoPos>-<ServoId2>:<ServoPos>[-...]-! */
-char* QueryGenerator::smrt_mvServo(uint32_t flag, uint8_t* pos){
+char* QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -110,7 +113,7 @@ char* QueryGenerator::smrt_mvServo(uint32_t flag, uint8_t* pos){
 char* QueryGenerator::smrt_mvAll(){
     return "-e-!";
 }
-char* QueryGenerator::smrt_updtServo(uint32_t flag, uint8_t* pos){
+char* QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-u-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -123,7 +126,7 @@ char* QueryGenerator::smrt_updtServo(uint32_t flag, uint8_t* pos){
     q.replace(3,1,1,count);
     return q.data();
 }
-char* QueryGenerator::smrt_currPos(uint8_t id, uint8_t pos){
-    std::string q = "-c-s:";//q+=id;q+="-p:";q+=pos;q+="-!";
+char* QueryGenerator::smrt_currPos(){
+    std::string q = "-c-s:";
     return q.data();
 }

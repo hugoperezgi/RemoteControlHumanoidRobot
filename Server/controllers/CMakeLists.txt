@@ -9,7 +9,7 @@ add_library(ControllersLib
     robotInformation.cpp
     controllerInfo.cpp
     dbman.cpp
-    srvCore.cpp  srvCore.h
+    srvCore.cpp srvCore.h
 )
 
 target_include_directories(ControllersLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

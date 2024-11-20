@@ -1,29 +1,40 @@
 #pragma once
 #include <stdint.h>
+#include <string>
+#include <vector>
+#include <memory>
 
-
-class RobotInformation{
+class RobotInformation {
 
     public:
-
         /* [min(0)/max(1)][servoId] = PWM signal (71-455) */
-        uint16_t** servos_MIN_MAX;
+        std::vector<std::vector<uint16_t>> servos_MIN_MAX;
         /* [servoId] = Servo position (0º-180º) */
-        uint8_t* servoPositions;
+        std::vector<uint8_t> servoPositions;
         /* [servoId] = Target Servo position (0º-180º) */
-        uint8_t* targetPositions;
+        std::vector<uint8_t> targetPositions;
+        /* Number of servos */
+        uint8_t servoCount = 0;
         /* "Name" of the mcu (Identifier) */
-        char* mcuName;
+        std::string mcuName;
         /* Whether the MCU works with a position or PWM signal */
-        bool smartMCU;
+        bool smartMCU = false;
+        /* Flag for pending servo updates */
+        uint32_t updateFlag = 0;
 
         RobotInformation();
-        RobotInformation(char*,bool);
-        RobotInformation(char*,uint8_t*,bool);
-        RobotInformation(char*,uint16_t**,bool);
-        RobotInformation(char*,uint16_t**,uint8_t*,bool);
-        RobotInformation(char*,uint16_t**,uint8_t*,uint8_t*,bool);
-        ~RobotInformation();
+
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<uint8_t>& currentPosition,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,bool smartMCU);
+        RobotInformation(const std::string& mcuName, uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,const std::vector<uint8_t>& targetPosition, bool smartMCU);
+        
+        ~RobotInformation() = default;
+        
+        RobotInformation(const RobotInformation&);
+        RobotInformation& operator=(const RobotInformation&);
+        RobotInformation(RobotInformation&&) noexcept;
+        RobotInformation& operator=(RobotInformation&&) noexcept;
 
 };
-

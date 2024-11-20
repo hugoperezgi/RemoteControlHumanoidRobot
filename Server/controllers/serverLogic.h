@@ -22,9 +22,11 @@
 class serverLogic{
     private:
 
-        static char* dispatchEMOD(uint8_t,ControllerInfo);
-        static char* dispatchSRVP(char*,ControllerInfo);
-        static char* dispatchMALL(ControllerInfo);
+        static char* dispatchEMOD(uint8_t,ControllerInfo*);
+        static char* dispatchSRVP(char*,ControllerInfo*);
+        static char* dispatchMALL(ControllerInfo*);
+
+        static char* dispatchSMCU(char*,ControllerInfo*);
 
     public:
         serverLogic() = delete;
@@ -32,6 +34,6 @@ class serverLogic{
 
         static int checkLogInQuery(std::string);
         static RobotInformation getQueryInformation(std::string);
-        static void handleQuery(std::string,ControllerInfo);
+        static void handleQuery(std::string,ControllerInfo*);
 };
 

@@ -54,6 +54,6 @@ class srvCore{
         ~srvCore();
         void runServer();
         static void rmvSock(SOCKET);
-        static std::string contactMCU(char*,char*);
+        static std::string contactMCU(const char*,char*);
 
 };

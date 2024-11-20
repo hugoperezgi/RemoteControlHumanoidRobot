@@ -8,7 +8,7 @@ class ControllerInfo{
     private:
         /* data */
     public:
-        // ControllerInfo(SOCKET);
+        ControllerInfo();
         // ControllerInfo(SOCKET,bool);
         ControllerInfo(SOCKET,RobotInformation,bool);
         ~ControllerInfo();
