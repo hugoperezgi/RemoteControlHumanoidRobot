@@ -5,15 +5,16 @@ inline bool checkHeader(std::string query){
     return (query.compare(0,HEADERLEN,HEADERTXT)==0 && query.compare(query.length()-TAILLEN,TAILLEN,TAILTXT)==0);
 }
 
-char* serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo* c){
+std::string serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo* c){
     if(eMOD==_eMOD_Delayed){(*c).updateOnRealTime=false;return QueryGenerator().ack(_eMOD_Delayed);}
     if(eMOD==_eMOD_RealTime){(*c).updateOnRealTime=true;return QueryGenerator().ack(_eMOD_RealTime);}
     return QueryGenerator().nack(_NACK_InvalidParameter); 
 }
 
-char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
+std::string serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
 
     if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    // if(!srvCore::isMCUOnline((*c).mcuInfo.mcuName.c_str())){return QueryGenerator().nack(_NACK_MCUOffline);}
 
     std::string query = "";
     query.clear();
@@ -24,7 +25,7 @@ char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
     uint8_t numServ=query.at(8);
     uint8_t tmpID=0;
     query=query.substr(10,(4*numServ)-1);
-    if((*c).mcuInfo.servoCount!=numServ){return QueryGenerator().nack(_NACK_ServoCountMissmatch);}
+    if((*c).mcuInfo.servoCount<numServ){return QueryGenerator().nack(_NACK_ServoCountMissmatch);}
     if((*c).mcuInfo.servos_MIN_MAX.empty() && (!(*c).mcuInfo.smartMCU)){return QueryGenerator().nack(_NACK_NoMCUInfo);}
     for (size_t i = 0; i < numServ; i++){
         tmpID=query.at(i*4);
@@ -32,7 +33,7 @@ char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
         (*c).mcuInfo.targetPositions[tmpID]=query.at(2+numServ*4);
     }
     
-    std::string rq=nullptr;
+    std::string rq="ACK";
 
     if((*c).updateOnRealTime){
         
@@ -53,11 +54,11 @@ char* serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
             (*c).mcuInfo.updateFlag=0;
         }    
     }
-    if((!strcmp(&rq[0],"E404"))||(!strcmp(&rq[0],"DCd_MCU"))){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+    if(strcmp(&rq[0],"ACK")){return QueryGenerator().nack(_NACK_ErrorContactingMCU);}
     return QueryGenerator().ack(_ACK_Generic);/* ACK query back to client*/
 }
 
-char* serverLogic::dispatchMALL(ControllerInfo* c){
+std::string serverLogic::dispatchMALL(ControllerInfo* c){
 
     if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
 
@@ -79,7 +80,7 @@ char* serverLogic::dispatchMALL(ControllerInfo* c){
     return QueryGenerator().ack(_ACK_Generic);
 }
 
-char* serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
+std::string serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
     
     std::string query = "";
     query.clear();
@@ -88,15 +89,10 @@ char* serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
     /* !s-sMCU-[mcuName]-e! */
     query=query.substr(8,query.size()-11);
 
-    std::cout<<query<<"\n";
-
-    /* TODO - get the mcu information from DB and assign it to the controller */
-    // (*c).mcuInfo=RobotInformation();
-
-
-    // if(!(*c).mcuInfo.mcuName.compare(query)){
-    //     return q.ack(_ACK_Generic);
-    // }
+    (*c).mcuInfo=DBMAN::getMCUInfo(query.data());
+    if(!(*c).mcuInfo.mcuName.compare(query)){
+        return QueryGenerator().ack(_ACK_Generic);
+    }
     return QueryGenerator().nack(_NACK_NoActiveMCU);
 }
 
@@ -158,7 +154,7 @@ void serverLogic::handleQuery(std::string q, ControllerInfo* c){
         //  param1=1/2 for updateModeRT queries
         //  param1=servoID for changeServoPosition query
 
-    char* qr = QueryGenerator().nack(_NACK_InvalidQuery);
+    std::string qr = QueryGenerator().nack(_NACK_InvalidQuery);
     if(checkHeader(q)){
 
         char* code = new char[5];
@@ -183,6 +179,6 @@ void serverLogic::handleQuery(std::string q, ControllerInfo* c){
         if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
         /* !s-mALL-e! ~ Shutdown server */
     }
-    send((*c).controllerSCK,qr,strlen(qr), 0);
+        send((*c).controllerSCK,qr.c_str(),qr.size(), 0);
     return;
 }

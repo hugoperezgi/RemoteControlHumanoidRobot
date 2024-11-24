@@ -2,6 +2,7 @@
 
 #include <sqlite3.h>
 #include <string>
+#include <vector>
 #include <cstring>
 
 #include "robotInformation.h"
@@ -27,6 +28,7 @@ class DBMAN{
         static void close();
 
         static int registerMCU(RobotInformation);
+        static RobotInformation getMCUInfo(char* name);
 
         DBMAN();
         ~DBMAN();

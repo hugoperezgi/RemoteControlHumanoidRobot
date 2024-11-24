@@ -22,11 +22,11 @@
 class serverLogic{
     private:
 
-        static char* dispatchEMOD(uint8_t,ControllerInfo*);
-        static char* dispatchSRVP(char*,ControllerInfo*);
-        static char* dispatchMALL(ControllerInfo*);
+        static std::string dispatchEMOD(uint8_t,ControllerInfo*);
+        static std::string dispatchSRVP(char*,ControllerInfo*);
+        static std::string dispatchMALL(ControllerInfo*);
 
-        static char* dispatchSMCU(char*,ControllerInfo*);
+        static std::string dispatchSMCU(char*,ControllerInfo*);
 
     public:
         serverLogic() = delete;

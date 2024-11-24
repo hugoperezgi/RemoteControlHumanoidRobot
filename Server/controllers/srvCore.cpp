@@ -44,6 +44,13 @@ void srvCore::setupDB(){
     return;
 }
 
+bool srvCore::isMCUOnline(const char* n){
+    for (auto &&i : MCUSCK){
+        if(!strcmp(i.name,n)){return true;}
+    }
+    return false;
+}
+
 srvCore::srvCore(char* ipAddress, int port){
     srvCore::srvUp=true;
     this->MCUSCK.reserve(2);this->ActiveControllers.reserve(2);
@@ -140,11 +147,11 @@ std::string srvCore::readSocket(SOCKET s){
     return str;
 }
 
-/* \return (char*) "DCd_MCU" if the Socket closes the connection or "E404" if mcuName cannot be found */
-std::string srvCore::contactMCU(const char* mcuName, char* query){
+/* (N)ACK from MCU or -> "DCd_MCU" if the Socket closes the connection or "E404" if mcuName cannot be found */
+std::string srvCore::contactMCU(const char* mcuName, std::string query){
     for(auto s:MCUSCK){
         if(s.name==mcuName){
-            if(send(s.sck, query, strlen(query),0)==SOCKET_ERROR){writeToLog("Connection Closed - MCU");rmvSock(s.sck);return "DCd_MCU";}
+            if(send(s.sck, query.c_str(), query.size(),0)==SOCKET_ERROR){writeToLog("Connection Closed - MCU");rmvSock(s.sck);return "DCd_MCU";}
             return readSocket(s.sck);
         }
     }
@@ -167,15 +174,21 @@ void srvCore::cliHandler(SOCKET s){
     std::string str;
     str = readSocket(s); 
     switch(serverLogic::checkLogInQuery(str)){
-        case MCUHELLOQUERY:
-            mcuLogIn(serverLogic::getQueryInformation(str),s);
-            break;
         case USRHELLOQUERY:
             usrLogIn(s);
             break;
+        case MCUHELLOQUERY:
+            try{
+                mcuLogIn(serverLogic::getQueryInformation(str),s);
+                break;
+            }catch(const std::invalid_argument& e){
+                writeToLog("MCU Log-in error: Malformed query string.");
+            }
         case BADQUERY: //intended chain
         default:
-            /* TODO */
+            std::string qr = QueryGenerator().nack(_NACK_InvalidQuery);
+            send(s,qr.c_str(),qr.size(), 0);
+            rmvSock(s);
             break;
     }
 

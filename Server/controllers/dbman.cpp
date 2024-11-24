@@ -1,6 +1,7 @@
 #include "dbman.h"
 #include <iostream>
 
+
 sqlite3* DBMAN::DB;
 sqlite3_stmt* DBMAN::pstmt;
 
@@ -9,7 +10,8 @@ int DBMAN::setupDB(char** errMsg){
     str="CREATE TABLE mcu";
         str+="(id INTEGER PRIMARY KEY AUTOINCREMENT,";
         str+="name TEXT NOT NULL UNIQUE,";
-        str+="servoCount INTEGER,"; /* If set to NULL -> no servodata for the given MCU */
+        str+="servoCount INTEGER,"; 
+        str+="updateFlag INTEGER,"; 
         str+="smart BOOLEAN NOT NULL)";
     // std::string str="INSERT INTO mcu (name, servoCount, smart) VALUES (?,?,?)";
     if(sqlite3_exec(DB, str.c_str(), NULL, 0, errMsg)!=SQLITE_OK){
@@ -24,6 +26,7 @@ int DBMAN::setupDB(char** errMsg){
         str+="servoAngle INTEGER,";
         str+="pwm_MIN INTEGER,";
         str+="pwm_MAX INTEGER,";
+        str+="target INTEGER,";
         str+="PRIMARY KEY (mcu_id,servoId),";
         str+="FOREIGN KEY (mcu_id) REFERENCES mcu(id) ON DELETE CASCADE)";
     // std::string str="INSERT INTO servodata (mcu_id, servoId, servoAngle, pwm_MIN, pwm_MAX) VALUES (?,?,?,?,?)";
@@ -49,7 +52,7 @@ void DBMAN::close(){sqlite3_close(DBMAN::DB);}
     //Try to insert new mcu -> if name duped -> update servodata with new info
 
 int DBMAN::registerMCU(RobotInformation mcu){
-    std::string str="INSERT INTO mcu (name, servoCount, smart) VALUES (?,?,?)";
+    std::string str="INSERT INTO mcu (name, servoCount, updateFlag, smart) VALUES (?,?,0,?)";
     if(pstmt){sqlite3_finalize(pstmt);pstmt=nullptr;}
     sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
         sqlite3_bind_text(pstmt,1,mcu.mcuName.c_str(),mcu.mcuName.length(),SQLITE_STATIC);
@@ -77,7 +80,7 @@ int DBMAN::registerMCU(RobotInformation mcu){
             sqlite3_finalize(pstmt);
             pstmt=nullptr;
         for (auto i=0; i<mcu.servoCount;i++){
-            str="INSERT INTO servodata (mcu_id, servoId, servoAngle, pwm_MIN, pwm_MAX) VALUES (?,?,?,NULL,NULL)";
+            str="INSERT INTO servodata (mcu_id, servoId, servoAngle, pwm_MIN, pwm_MAX, target) VALUES (?,?,?,NULL,NULL,NULL)";
             sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
                 sqlite3_bind_int(pstmt,1,id);
                 sqlite3_bind_int(pstmt,2,i);
@@ -109,7 +112,55 @@ int DBMAN::registerMCU(RobotInformation mcu){
     return _DBMAN_ERROR_REGMCU;
 }
 
-    //Client uploads info -> check if theres info 
+RobotInformation DBMAN::getMCUInfo(char* name){
+    std::string str;
+    str="SELECT * FROM mcu WHERE name = ?";
+    if(pstmt){sqlite3_finalize(pstmt);pstmt=nullptr;}
+    sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+        sqlite3_bind_text(pstmt,1,name,strlen(name),SQLITE_STATIC);
+    int c=sqlite3_step(pstmt);
+    if(c!=SQLITE_ROW){
+        sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+        return RobotInformation();
+    }
+        int id = sqlite3_column_int(pstmt,0);
+        const unsigned char* n=sqlite3_column_text(pstmt,1);
+        std::string mnam=n ? reinterpret_cast<const char*>(n):"";
+        int count = sqlite3_column_int(pstmt,2);
+        int uFlag = sqlite3_column_int(pstmt,3);
+        bool smrt = sqlite3_column_int(pstmt,4);
+    sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+    std::vector<uint8_t> cV,tV;
+        cV.clear();tV.clear();
+    std::vector<uint16_t> minV,maxV;
+        minV.clear();maxV.clear();
+    for(int i=0;i<count;i++){
+        str="SELECT servoAngle, pwm_MIN, pwm_MAX, target FROM servodata WHERE mcu_id = ? AND servoId = ?";
+        sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+            sqlite3_bind_int(pstmt,1,id);
+            sqlite3_bind_int(pstmt,2,i);
+        c=sqlite3_step(pstmt);
+            if(c==SQLITE_DONE){
+                sqlite3_finalize(pstmt);
+                pstmt=nullptr;
+                return RobotInformation(mnam,count,uFlag,smrt);
+            }
+            cV.emplace_back(sqlite3_column_int(pstmt,0));
+            minV.emplace_back(sqlite3_column_int(pstmt,1));
+            maxV.emplace_back(sqlite3_column_int(pstmt,2));
+            tV.emplace_back(sqlite3_column_int(pstmt,3));
+        sqlite3_finalize(pstmt);
+            pstmt=nullptr;
+    }
+    if(minV.at(0)==NULL || maxV.at(0)==NULL){
+        if(tV.at(0)==NULL){return RobotInformation(mnam,count,cV,uFlag,smrt);}else{return RobotInformation(mnam,count,cV,uFlag,tV,smrt);}
+    } 
+    std::vector<std::vector<uint16_t>> iV;
+    iV.emplace_back(minV);iV.emplace_back(maxV);
+    if(tV.at(0)==NULL){return RobotInformation(mnam,count,iV,cV,uFlag,smrt);}else{return RobotInformation(mnam,count,iV,cV,tV,uFlag,smrt);}
+}   
 
 /* Data retrival */
 

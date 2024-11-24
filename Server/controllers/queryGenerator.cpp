@@ -28,17 +28,17 @@ QueryGenerator::~QueryGenerator(){
     */
 
 
-char* QueryGenerator::ack(uint8_t code){
+std::string QueryGenerator::ack(uint8_t code){
     std::string q = "!s-_ACK:0-e!";
     q.replace(8,1,1,code);
-    return q.data();
+    return q;
 }
-char* QueryGenerator::nack(uint8_t code){
+std::string QueryGenerator::nack(uint8_t code){
     std::string q = "!s-NACK:0-e!";
     q.replace(8,1,1,code);
-    return q.data();
+    return q;
 }
-char* QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
+std::string QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
     /* [!s]-[SRVP]-[number of servos to update]-[servoid:servopos~servoid:servopos]-[e!] */
     /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((4*NumOfServos)-1) */
     std::string q = "!s-SRVP-0-";
@@ -51,7 +51,7 @@ char* QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
     }
     q.replace(8,1,1,count);
     q+="e!";
-    return q.data();
+    return q;
 }
 
 /* MCU functions Query[Server -> MCU] */
@@ -71,16 +71,16 @@ char* QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
 
 /* Support function for Dumb functions */
 
-char* QueryGenerator::divideIntoBytes(uint16_t u){
+std::string QueryGenerator::divideIntoBytes(uint16_t u){
     std::string hl = "";
     hl+=(uint8_t)(u>>8);
     hl+=(uint8_t)(u&0x00ff);
-    return hl.data();
+    return hl;
 }
 
 /* Dumb functions - MCU*/
 
-char* QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos, std::vector<std::vector<uint16_t>> minmax){
+std::string QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos, std::vector<std::vector<uint16_t>> minmax){
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -91,13 +91,13 @@ char* QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos, std::
     }
     q+="!";
     q.replace(3,1,1,count);
-    return q.data();
+    return q;
 }
 
 /* Smart functions - MCU */
 
 /* -m-<ServoCount>-<ServoId1>:<ServoPos>-<ServoId2>:<ServoPos>[-...]-! */
-char* QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos){
+std::string QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -108,12 +108,12 @@ char* QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos){
     }
     q+="!";
     q.replace(3,1,1,count);
-    return q.data();
+    return q;
 }
-char* QueryGenerator::smrt_mvAll(){
+std::string QueryGenerator::smrt_mvAll(){
     return "-e-!";
 }
-char* QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
+std::string QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-u-0-";
     uint8_t count=0;
     for (size_t i = 0; i < 27; i++){
@@ -124,9 +124,9 @@ char* QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
     }
     q+="!";
     q.replace(3,1,1,count);
-    return q.data();
+    return q;
 }
-char* QueryGenerator::smrt_currPos(){
+std::string QueryGenerator::smrt_currPos(){
     std::string q = "-c-s:";
-    return q.data();
+    return q;
 }

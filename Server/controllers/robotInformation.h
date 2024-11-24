@@ -25,10 +25,14 @@ class RobotInformation {
         RobotInformation();
 
         RobotInformation(const std::string& mcuName,uint8_t servoCount,bool smartMCU);
-        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,uint32_t updateFlag,bool smartMCU);
         RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<uint8_t>& currentPosition,bool smartMCU);
-        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,bool smartMCU);
-        RobotInformation(const std::string& mcuName, uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,const std::vector<uint8_t>& targetPosition, bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<uint8_t>& currentPosition,uint32_t updateFlag,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<uint8_t>& currentPosition,uint32_t updateFlag,const std::vector<uint8_t>& tPosition,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,uint32_t updateFlag,bool smartMCU);
+        RobotInformation(const std::string& mcuName,uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,uint32_t updateFlag,const std::vector<uint8_t>& tPosition,bool smartMCU);
+        RobotInformation(const std::string& mcuName, uint8_t servoCount,const std::vector<std::vector<uint16_t>>& srvMinMax,const std::vector<uint8_t>& currentPosition,const std::vector<uint8_t>& targetPosition,uint32_t updateFlag,bool smartMCU);
         
         ~RobotInformation() = default;
         

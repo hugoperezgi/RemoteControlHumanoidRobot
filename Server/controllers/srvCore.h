@@ -53,7 +53,8 @@ class srvCore{
         srvCore(char*, int);
         ~srvCore();
         void runServer();
+        static bool isMCUOnline(const char*);
         static void rmvSock(SOCKET);
-        static std::string contactMCU(const char*,char*);
+        static std::string contactMCU(const char*,std::string query);
 
 };
