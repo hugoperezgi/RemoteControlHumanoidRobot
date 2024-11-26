@@ -4,8 +4,11 @@
 
 sqlite3* DBMAN::DB;
 sqlite3_stmt* DBMAN::pstmt;
+std::mutex DBMAN::mtxDB;
 
 int DBMAN::setupDB(char** errMsg){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
     std::string str;
     str="CREATE TABLE mcu";
         str+="(id INTEGER PRIMARY KEY AUTOINCREMENT,";
@@ -38,6 +41,8 @@ DB_CREATION_ERROR:
 }
 
 int DBMAN::open(char** errMsg){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
     if(sqlite3_open("data.db",&DBMAN::DB)){return 0;}
     std::string str="PRAGMA foreign_keys=ON";
     if(sqlite3_exec(DB, str.c_str(), NULL, 0, errMsg)!=SQLITE_OK){
@@ -52,6 +57,8 @@ void DBMAN::close(){sqlite3_close(DBMAN::DB);}
     //Try to insert new mcu -> if name duped -> update servodata with new info
 
 int DBMAN::registerMCU(RobotInformation mcu){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
     std::string str="INSERT INTO mcu (name, servoCount, updateFlag, smart) VALUES (?,?,0,?)";
     if(pstmt){sqlite3_finalize(pstmt);pstmt=nullptr;}
     sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
@@ -113,6 +120,8 @@ int DBMAN::registerMCU(RobotInformation mcu){
 }
 
 RobotInformation DBMAN::getMCUInfo(char* name){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
     std::string str;
     str="SELECT * FROM mcu WHERE name = ?";
     if(pstmt){sqlite3_finalize(pstmt);pstmt=nullptr;}
@@ -161,6 +170,18 @@ RobotInformation DBMAN::getMCUInfo(char* name){
     iV.emplace_back(minV);iV.emplace_back(maxV);
     if(tV.at(0)==NULL){return RobotInformation(mnam,count,iV,cV,uFlag,smrt);}else{return RobotInformation(mnam,count,iV,cV,tV,uFlag,smrt);}
 }   
+
+int DBMAN::updateMCUInfo(RobotInformation r){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
+
+}
+
+int DBMAN::saveMCUInfo(RobotInformation r){
+        std::lock_guard<std::mutex> lck(mtxDB);
+
+    
+}
 
 /* Data retrival */
 

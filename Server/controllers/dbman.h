@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 #include <string>
 #include <vector>
+#include <mutex>
 #include <cstring>
 
 #include "robotInformation.h"
@@ -22,12 +23,19 @@ class DBMAN{
     private:
         static sqlite3* DB;
         static sqlite3_stmt* pstmt;
+        static std::mutex mtxDB;
     public:
         static int setupDB(char**);
         static int open(char**);
         static void close();
 
+        /* Used to register a new MCU into DB */
         static int registerMCU(RobotInformation);
+        /* Used to save the current state of the MCU when controller goes offline [updateFlag, targetPositions] */
+        static int saveMCUInfo(RobotInformation);
+        /* Used to upload MCU information through the controller client [servoMin-Max] */
+        static int updateMCUInfo(RobotInformation);
+        /* Load all MCU information to controller */
         static RobotInformation getMCUInfo(char* name);
 
         DBMAN();
