@@ -11,7 +11,11 @@
 #include <ws2tcpip.h>
 #include <iostream>
 #include <mutex>
+#include <queue>
+#include <condition_variable>
 #include <vector>
+#include <fstream>
+#include <thread>
 
 #include <ctime> 
 
@@ -28,7 +32,13 @@
 
 class srvCore{
     private:
-        static std::mutex mtx;
+        static std::ofstream logFile;
+        static std::mutex mtxLOG;
+        static std::queue<std::string> queueLOG;
+        static std::condition_variable condLOG;
+
+        static std::mutex mtxSCK;
+        static std::thread threadLog;
         SOCKET sckListen;
         sockaddr_in srvAddr;
         char* s;
@@ -48,6 +58,8 @@ class srvCore{
         static void writeToLog(char*);
         static void writeToLog(char*,char*);
         static void setupDB();
+        static void setupLogger();
+        static void logfn();
     public:
         static bool srvUp;
         srvCore(char*, int);

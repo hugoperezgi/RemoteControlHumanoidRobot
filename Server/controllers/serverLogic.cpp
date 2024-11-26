@@ -14,7 +14,7 @@ std::string serverLogic::dispatchEMOD(uint8_t eMOD,ControllerInfo* c){
 std::string serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
 
     if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
-    // if(!srvCore::isMCUOnline((*c).mcuInfo.mcuName.c_str())){return QueryGenerator().nack(_NACK_MCUOffline);}
+    if(!srvCore::isMCUOnline((*c).mcuInfo.mcuName.c_str())){return QueryGenerator().nack(_NACK_MCUOffline);}
 
     std::string query = "";
     query.clear();
@@ -22,15 +22,19 @@ std::string serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
 
     /* [!s]-[SRVP]-[number of servos to update]-[servoid:servopos~servoid:servopos]-[e!] */
     /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((4*NumOfServos)-1) */
+    /* Servoid and servoposition are sent with a +1 offset as a zero would mean end of stream */
+
     uint8_t numServ=query.at(8);
-    uint8_t tmpID=0;
+    uint8_t tmpID=0,tPos=0;
     query=query.substr(10,(4*numServ)-1);
     if((*c).mcuInfo.servoCount<numServ){return QueryGenerator().nack(_NACK_ServoCountMissmatch);}
     if((*c).mcuInfo.servos_MIN_MAX.empty() && (!(*c).mcuInfo.smartMCU)){return QueryGenerator().nack(_NACK_NoMCUInfo);}
     for (size_t i = 0; i < numServ; i++){
-        tmpID=query.at(i*4);
+        tmpID=query.at(i*4)-1;
+        tPos=query.at(2+numServ*4);
+        if(tmpID>(*c).mcuInfo.servoCount || tPos>181){return QueryGenerator().nack(_NACK_InvalidParameter);}
         (*c).mcuInfo.updateFlag|=(0b1<<tmpID); 
-        (*c).mcuInfo.targetPositions[tmpID]=query.at(2+numServ*4);
+        (*c).mcuInfo.targetPositions[tmpID]=tPos;
     }
     
     std::string rq="ACK";
@@ -107,9 +111,6 @@ RobotInformation serverLogic::getQueryInformation(std::string q){
     /* !s-NodeMCU_here-[info]-e! */
     std::string tmp=q.substr(16,q.size()-19);
 
-    // char* tmp=new char[strlen(q.data())-18];
-    // memcpy(tmp,q.data()+16,strlen(tmp));
-
     /* [info] mcuName-<servocount>-<pos0>-<pos1>...*/
         // dumbMCU-<servocount>-<255> {!s-NodeMCU_here-dumbMCU-<servocount>-<255>-e!}
     auto i=tmp.find('-');
@@ -179,6 +180,7 @@ void serverLogic::handleQuery(std::string q, ControllerInfo* c){
         if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
         /* !s-mALL-e! ~ Shutdown server */
     }
-        send((*c).controllerSCK,qr.c_str(),qr.size(), 0);
+    
+    send((*c).controllerSCK,qr.c_str(),qr.size(), 0);
     return;
 }

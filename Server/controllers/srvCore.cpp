@@ -1,36 +1,59 @@
 #include "srvCore.h"
-#include <fstream>
-#include <thread>
 
 FD_SET srvCore::allSCK;
-std::mutex srvCore::mtx;
+std::mutex srvCore::mtxSCK;
+std::mutex srvCore::mtxLOG;
+std::ofstream srvCore::logFile;
+std::thread srvCore::threadLog;
+std::queue<std::string> srvCore::queueLOG;
+std::condition_variable srvCore::condLOG;
 bool srvCore::srvUp;
 std::vector<MCUSocket> srvCore::MCUSCK;
 std::vector<ControllerInfo> srvCore::ActiveControllers;
 
 void srvCore::writeToLog(char* s){
 #ifdef LOGGER 
-    std::ofstream file;
-    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
     char timeBuffer[20]; 
     std::time_t t = std::time(nullptr);
     std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
-    file << "\n[" << timeBuffer << "] "<<s;
-    if(!strcmp(s,"WSA Error")){file << "Error code: " << WSAGetLastError();}
-    file.close();
+    std::string e = "\n["+std::string(timeBuffer)+"] "+s;
+    {std::lock_guard<std::mutex> lck(mtxLOG);
+        queueLOG.push(e);}
+    condLOG.notify_one();
 #endif
 }
 void srvCore::writeToLog(char* s,char* s2 ){
 #ifdef LOGGER 
-    std::ofstream file;
-    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
     char timeBuffer[20]; 
     std::time_t t = std::time(nullptr);
     std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
-    file << "\n[" << timeBuffer << "] "<<s<<" "<<s2;
-    if(!strcmp(s,"WSA Error")){file << "Error code: " << WSAGetLastError();}
-    file.close();
+    std::string e = "\n["+std::string(timeBuffer)+"] "+s+" "+s2;
+    {std::lock_guard<std::mutex> lck(mtxLOG);
+        queueLOG.push(e);}
+    condLOG.notify_one();
 #endif
+}
+
+void srvCore::logfn(){
+#ifdef LOGGER 
+    while(srvCore::srvUp || !queueLOG.empty()){
+        std::unique_lock<std::mutex> lck(mtxLOG);
+        condLOG.wait(lck,[](){return (!srvCore::srvUp || !queueLOG.empty());});
+        std::cout<<"preflush\n";
+        while(!queueLOG.empty()){
+            logFile<<queueLOG.front();
+            queueLOG.pop();
+        }
+        std::cout<<"flush\n";
+        logFile.flush();
+    }
+    logFile.close();
+#endif
+}
+
+void srvCore::setupLogger(){
+    logFile.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
+    threadLog = std::thread(&srvCore::logfn);
 }
 
 void srvCore::setupDB(){
@@ -53,6 +76,7 @@ bool srvCore::isMCUOnline(const char* n){
 
 srvCore::srvCore(char* ipAddress, int port){
     srvCore::srvUp=true;
+    setupLogger();
     this->MCUSCK.reserve(2);this->ActiveControllers.reserve(2);
     if(WSAStartup(MAKEWORD(2, 2), &wsaData)!=NO_ERROR){WSACleanup();writeToLog("WSA_Error");srvCore::srvUp=false;return;}
     sckListen = socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
@@ -76,15 +100,16 @@ srvCore::~srvCore(){
     ActiveControllers.clear();
     WSACleanup();
     writeToLog("Server Shutdown");
+    condLOG.notify_all();
+    if(threadLog.joinable()){threadLog.join();}
     Sleep(250);
 }
 
 void srvCore::rmvSock(SOCKET s){
-    mtx.lock();
+    std::lock_guard<std::mutex> lck(mtxSCK);
     FD_CLR(s,&allSCK);
     rmvSockfromVectors(s);
     closesocket(s);
-    mtx.unlock();
 }
 void srvCore::rmvSockfromVectors(SOCKET s){
     for (auto it=MCUSCK.begin();it<MCUSCK.end();it++){
@@ -126,24 +151,15 @@ std::string srvCore::readSocket(SOCKET s){
     std::string str = "";
     memset(rcvB, 0, sizeof rcvB);
 
-    std::ofstream file;
-    file.open("ServerLog.log",std::ofstream::out|std::ofstream::app);
-
-    char timeBuffer[20]; 
-    std::time_t t = std::time(nullptr);
-    std::strftime(timeBuffer, sizeof(timeBuffer), "%d/%m/%Y %H:%M", std::localtime(&t));
-
     do{
         i=recv(s,rcvB,RCV_BF_LEN,0);
             if(i==0){writeToLog("Connection Closed");rmvSock(s);return "DC";}
-        str+=rcvB;
-        memset(rcvB, 0, sizeof rcvB);
-        /* https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2 */
-        if(i==SOCKET_ERROR){writeToLog("WSA Error");rmvSock(s);return "WSAERR";} 
-    } while (i==RCV_BF_LEN && WSAGetLastError()==WSAEMSGSIZE);
+            /* https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2 */
+            if(i==SOCKET_ERROR){writeToLog("WSA Error:",std::to_string(WSAGetLastError()).data());rmvSock(s);return "WSAERR";} 
+        str.append(rcvB, i);
+    } while (i==RCV_BF_LEN);
 
-    file << "\n[" << timeBuffer << "] New query -> " << str;
-    file.close();
+    writeToLog("New query ->",str.data());
     return str;
 }
 
@@ -163,7 +179,7 @@ void srvCore::userHandler(SOCKET s){
     std::string str = readSocket(s);
     for(auto i=0;i<ActiveControllers.size();i++){
         if(ActiveControllers[i].controllerSCK==s){
-            new std::thread(serverLogic::handleQuery,str,&ActiveControllers[i]);
+            std::thread(serverLogic::handleQuery,str,&ActiveControllers[i]).detach();
         }
     }
 

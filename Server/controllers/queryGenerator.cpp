@@ -46,7 +46,7 @@ std::string QueryGenerator::servoPos(uint32_t flag, std::vector<uint8_t> pos){
     for (size_t i = 0; i < 27; i++){
         if(flag&(0b1<<i)==(0b1<<i)){
             count++;
-            q+=i;q+=":";q+=pos[i];q+="-";
+            q+=(i+1);q+=":";q+=pos[i];q+="-";
         }
     }
     q.replace(8,1,1,count);
@@ -83,10 +83,10 @@ std::string QueryGenerator::divideIntoBytes(uint16_t u){
 std::string QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos, std::vector<std::vector<uint16_t>> minmax){
     std::string q = "-m-0-";
     uint8_t count=0;
-    for (size_t i = 0; i < 27; i++){
+    for (size_t i = 0; i < pos.size(); i++){
         if(flag&(0b1<<i)==(0b1<<i)){
             count++;
-            q+=i;q+=":";q+=divideIntoBytes(pos[i]*((minmax[1][i]-minmax[0][i])/180));q+="-";
+            q+=(i+1);q+=":";q+=divideIntoBytes(minmax[0][i]+(pos[i]-1)*((minmax[1][i]-minmax[0][i])/180));q+="-";
         }
     }
     q+="!";
@@ -100,10 +100,10 @@ std::string QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos,
 std::string QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-m-0-";
     uint8_t count=0;
-    for (size_t i = 0; i < 27; i++){
+    for (size_t i = 0; i < pos.size(); i++){
         if(flag&(0b1<<i)==(0b1<<i)){
             count++;
-            q+=i;q+=":";q+=pos[i];q+="-";
+            q+=(i+1);q+=":";q+=pos[i];q+="-";
         }
     }
     q+="!";
@@ -116,10 +116,10 @@ std::string QueryGenerator::smrt_mvAll(){
 std::string QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-u-0-";
     uint8_t count=0;
-    for (size_t i = 0; i < 27; i++){
+    for (size_t i = 0; i < pos.size(); i++){
         if(flag&(0b1<<i)==(0b1<<i)){
             count++;
-            q+=i;q+=":";q+=pos[i];q+="-";
+            q+=(i+1);q+=":";q+=pos[i];q+="-";
         }
     }
     q+="!";

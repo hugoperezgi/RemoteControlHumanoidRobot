@@ -9,9 +9,9 @@ class RobotInformation {
     public:
         /* [min(0)/max(1)][servoId] = PWM signal (71-455) */
         std::vector<std::vector<uint16_t>> servos_MIN_MAX;
-        /* [servoId] = Servo position (0º-180º) */
+        /* [servoId] = Servo position (1º-181º) */
         std::vector<uint8_t> servoPositions;
-        /* [servoId] = Target Servo position (0º-180º) */
+        /* [servoId] = Target Servo position (1º-181º) */
         std::vector<uint8_t> targetPositions;
         /* Number of servos */
         uint8_t servoCount = 0;
