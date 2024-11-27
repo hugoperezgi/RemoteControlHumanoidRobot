@@ -17,7 +17,10 @@
 #include <fstream>
 #include <thread>
 
-#include <ctime> 
+#include <iomanip>
+#include <string>
+#include <chrono>
+#include <sstream>
 
 #include "robotInformation.h"
 #include "controllerInfo.h"
@@ -36,6 +39,7 @@ class srvCore{
         static std::mutex mtxLOG;
         static std::queue<std::string> queueLOG;
         static std::condition_variable condLOG;
+        static bool loggerUp;
 
         static std::mutex mtxSCK;
         static std::thread threadLog;
@@ -56,6 +60,8 @@ class srvCore{
         static std::string readSocket(SOCKET);
         static void rmvSockfromVectors(SOCKET);
         static void writeToLog(char*);
+        static void writeQueryToLog(char*);
+        static void writeMCUMSGToLog(std::string);
         static void writeToLog(char*,char*);
         static void setupDB();
         static void setupLogger();
@@ -65,6 +71,7 @@ class srvCore{
         srvCore(char*, int);
         ~srvCore();
         void runServer();
+        static void writeDBERRToLog(char*);
         static bool isMCUOnline(const char*);
         static void rmvSock(SOCKET);
         static std::string contactMCU(const char*,std::string query);

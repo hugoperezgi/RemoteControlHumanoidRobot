@@ -3,14 +3,14 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <cstring>
+#include <string>
 
 
 class MCUSocket{
     public:
         SOCKET sck;
-        char* name;
-        MCUSocket(SOCKET sck,const char* name);
+        std::string name;
+        MCUSocket(SOCKET sck,const std::string& name);
         MCUSocket();
         ~MCUSocket();
 

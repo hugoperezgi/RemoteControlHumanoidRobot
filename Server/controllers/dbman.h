@@ -6,9 +6,12 @@
 #include <mutex>
 #include <cstring>
 
+#include "srvCore.h"
+
 #include "robotInformation.h"
 
 #define _DBMAN_DBCREATED 0
+#define _DBMAN_OK 100
 #define _DBMAN_DBCREATE_ERROR 1
 #define _DBMAN_DB_ALREADYEXIST 2
 #define _DBMAN_NEW_S_MCU 255
@@ -17,6 +20,7 @@
 #define _DBMAN_OLD_D_MCU 252
 #define _DBMAN_ERROR_REGMCU 251
 #define _DBMAN_ERROR_REGSMCU 250
+#define _DBMAN_ERROR_INFMISSMATCH 249
 
 
 class DBMAN{
@@ -32,9 +36,9 @@ class DBMAN{
         /* Used to register a new MCU into DB */
         static int registerMCU(RobotInformation);
         /* Used to save the current state of the MCU when controller goes offline [updateFlag, targetPositions] */
-        static int saveMCUInfo(RobotInformation);
+        static void saveMCUInfo(RobotInformation);
         /* Used to upload MCU information through the controller client [servoMin-Max] */
-        static int updateMCUInfo(RobotInformation);
+        static void updateMCUInfo(RobotInformation);
         /* Load all MCU information to controller */
         static RobotInformation getMCUInfo(char* name);
 

@@ -50,7 +50,10 @@ int DBMAN::open(char** errMsg){
     }
     return 1;
 }
-void DBMAN::close(){sqlite3_close(DBMAN::DB);}
+void DBMAN::close(){
+        std::lock_guard<std::mutex> lck(mtxDB);
+    sqlite3_close(DBMAN::DB);
+}
 
 /* Data insertion */
 
@@ -69,13 +72,19 @@ int DBMAN::registerMCU(RobotInformation mcu){
         sqlite3_finalize(pstmt);
         pstmt=nullptr;
     if(c==SQLITE_CONSTRAINT||c==SQLITE_CONSTRAINT_UNIQUE){
-        str="UPDATE mcu SET servoCount = ? WHERE name = ?";
+        str="SELECT servoCount FROM mcu WHERE name = ?";
         sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
-            sqlite3_bind_int(pstmt,1,mcu.servoCount);
-            sqlite3_bind_text(pstmt,2,mcu.mcuName.c_str(),mcu.mcuName.length(),SQLITE_STATIC);
-        c=sqlite3_step(pstmt);
+            sqlite3_bind_text(pstmt,1,mcu.mcuName.c_str(),mcu.mcuName.length(),SQLITE_STATIC);
+        c = sqlite3_step(pstmt);
+        if(c!=SQLITE_ROW){
+            sqlite3_finalize(pstmt);pstmt=nullptr;  
+            return _DBMAN_ERROR_REGSMCU;      
+        }
+        int cnt = sqlite3_column_int(pstmt,0);
+            c = sqlite3_step(pstmt);
             sqlite3_finalize(pstmt);
             pstmt=nullptr;
+        if(cnt!=mcu.servoCount){return _DBMAN_ERROR_INFMISSMATCH;}
     }
     if(c==SQLITE_DONE){
         if((!mcu.smartMCU)||(mcu.servoPositions.empty())){if(str.at(0)=='U'){return _DBMAN_OLD_D_MCU;}return _DBMAN_NEW_D_MCU;}
@@ -171,16 +180,80 @@ RobotInformation DBMAN::getMCUInfo(char* name){
     if(tV.at(0)==NULL){return RobotInformation(mnam,count,iV,cV,uFlag,smrt);}else{return RobotInformation(mnam,count,iV,cV,tV,uFlag,smrt);}
 }   
 
-int DBMAN::updateMCUInfo(RobotInformation r){
+/** TODO */
+void DBMAN::updateMCUInfo(RobotInformation r){
         std::lock_guard<std::mutex> lck(mtxDB);
 
+    std::string str;int c;
+    str="SELECT id FROM mcu WHERE name = ?";
+    sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+        sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
+    c=sqlite3_step(pstmt);
+    int id = sqlite3_column_int(pstmt,0);
+        sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+    if(c!=SQLITE_ROW){
+        srvCore::writeDBERRToLog("Could not save MCU data - MCU Not Found");
+        return;
+    }
+
+    /* Insert information to servodata table */
+    return;
 
 }
 
-int DBMAN::saveMCUInfo(RobotInformation r){
+void DBMAN::saveMCUInfo(RobotInformation r){
         std::lock_guard<std::mutex> lck(mtxDB);
 
-    
+    std::string str;int c=0;
+    str="SELECT id FROM mcu WHERE name = ?";
+    sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+        sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
+    c=sqlite3_step(pstmt);
+    int id = sqlite3_column_int(pstmt,0);
+        if(c!=SQLITE_ROW){
+            srvCore::writeDBERRToLog("Could not save MCU data - MCU Not Found");
+            sqlite3_finalize(pstmt);
+            pstmt=nullptr;
+            return;
+        }
+        c=sqlite3_step(pstmt);
+        sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+
+    sqlite3_exec(DB,"BEGIN TRANSACTION",nullptr,nullptr,nullptr);
+    str="UPDATE mcu SET updateFlag = ? WHERE name = ?";
+        sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+            sqlite3_bind_int(pstmt,1,r.updateFlag);
+            sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
+        c=sqlite3_step(pstmt);
+            sqlite3_finalize(pstmt);
+            pstmt=nullptr;
+        if(c!=SQLITE_DONE){
+            sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+            srvCore::writeDBERRToLog("Could not save MCU data - Error updating UpdateFlag");
+            return;
+        }
+
+    str="UPDATE servodata SET servoAngle = ?, target = ? WHERE mcu_id = ? AND servoId = ?";
+    for (size_t i = 0; i < r.servoCount; i++){
+        sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+            if(r.servoPositions[i]==NULL){sqlite3_bind_null(pstmt,1);}else{sqlite3_bind_int(pstmt,1,r.servoPositions[i]);}
+            if(r.targetPositions[i]==NULL){sqlite3_bind_int(pstmt,2,0);}else{sqlite3_bind_int(pstmt,2,r.targetPositions[i]);}
+            sqlite3_bind_int(pstmt,3,id);
+            sqlite3_bind_int(pstmt,4,i);
+        c=sqlite3_step(pstmt);
+            sqlite3_finalize(pstmt);
+            pstmt=nullptr;
+        if(c!=SQLITE_DONE){
+            sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+            srvCore::writeDBERRToLog("Could not save MCU data - Error updating current/target position");
+            return;
+        }        
+    }
+    sqlite3_exec(DB,"COMMIT",nullptr,nullptr,nullptr);
+    srvCore::writeDBERRToLog(std::string("Updated MCU data ("+r.mcuName+")").data());
+    return;
 }
 
 /* Data retrival */

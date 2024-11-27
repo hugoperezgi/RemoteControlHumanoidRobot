@@ -84,7 +84,7 @@ std::string QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos,
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < pos.size(); i++){
-        if(flag&(0b1<<i)==(0b1<<i)){
+        if((flag&(0b1<<i))==(0b1<<i)){
             count++;
             q+=(i+1);q+=":";q+=divideIntoBytes(minmax[0][i]+(pos[i]-1)*((minmax[1][i]-minmax[0][i])/180));q+="-";
         }
@@ -101,7 +101,7 @@ std::string QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos)
     std::string q = "-m-0-";
     uint8_t count=0;
     for (size_t i = 0; i < pos.size(); i++){
-        if(flag&(0b1<<i)==(0b1<<i)){
+        if((flag&(0b1<<i))==(0b1<<i)){
             count++;
             q+=(i+1);q+=":";q+=pos[i];q+="-";
         }
@@ -117,7 +117,7 @@ std::string QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> po
     std::string q = "-u-0-";
     uint8_t count=0;
     for (size_t i = 0; i < pos.size(); i++){
-        if(flag&(0b1<<i)==(0b1<<i)){
+        if((flag&(0b1<<i))==(0b1<<i)){
             count++;
             q+=(i+1);q+=":";q+=pos[i];q+="-";
         }
