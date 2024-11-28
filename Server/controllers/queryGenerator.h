@@ -10,6 +10,7 @@
 #define _NACK_NoMCUInfo 250
 #define _NACK_MCUOffline 249
 #define _NACK_ErrorContactingMCU 248
+#define _NACK_ErrorLoadingMINMAX 247
 
 #define _ACK_Generic 255
 
@@ -20,6 +21,7 @@ class QueryGenerator{
     private:
     public:
         std::string divideIntoBytes(uint16_t);
+        inline uint16_t restore16int(uint8_t,uint8_t);
         QueryGenerator();
         ~QueryGenerator();
 
@@ -32,7 +34,7 @@ class QueryGenerator{
         /* Sends to the MCU the step angle (0-180), the MCU calculates de PWM signal */
         std::string smrt_updtServo(uint32_t flag,std::vector<uint8_t> servoPositions);
         /* Executes the movement "loaded" with the updtServo query */
-        std::string smrt_mvAll();
+        inline std::string smrt_mvAll();
         /* Asking the MCU the current positions */
         std::string smrt_currPos();
 
@@ -49,3 +51,5 @@ class QueryGenerator{
         // std::string updateMode(char);
 };
 
+inline uint16_t QueryGenerator::restore16int(uint8_t c0,uint8_t c1){return (c0<<8)+c1;}
+inline std::string QueryGenerator::smrt_mvAll(){return "-e-!";}

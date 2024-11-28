@@ -55,10 +55,6 @@ void DBMAN::close(){
     sqlite3_close(DBMAN::DB);
 }
 
-/* Data insertion */
-
-    //Try to insert new mcu -> if name duped -> update servodata with new info
-
 int DBMAN::registerMCU(RobotInformation mcu){
         std::lock_guard<std::mutex> lck(mtxDB);
 
@@ -180,26 +176,92 @@ RobotInformation DBMAN::getMCUInfo(char* name){
     if(tV.at(0)==NULL){return RobotInformation(mnam,count,iV,cV,uFlag,smrt);}else{return RobotInformation(mnam,count,iV,cV,tV,uFlag,smrt);}
 }   
 
-/** TODO */
-void DBMAN::updateMCUInfo(RobotInformation r){
+int DBMAN::updateMCUInfo(RobotInformation r){
         std::lock_guard<std::mutex> lck(mtxDB);
 
-    std::string str;int c;
+    std::string str;int c=0;
     str="SELECT id FROM mcu WHERE name = ?";
     sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
         sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
     c=sqlite3_step(pstmt);
     int id = sqlite3_column_int(pstmt,0);
+        if(c!=SQLITE_ROW){
+            srvCore::writeDBERRToLog("Could not save MCU data - MCU Not Found");
+            sqlite3_finalize(pstmt);
+            pstmt=nullptr;
+            return _DBMAN_ERROR;
+        }
+        c=sqlite3_step(pstmt);
         sqlite3_finalize(pstmt);
         pstmt=nullptr;
+
+    str="SELECT 1 from servodata WHERE mcu_id = ? AND servoId = ?";
+    sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+        sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
+    c=sqlite3_step(pstmt);
+        sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+
+    sqlite3_exec(DB,"BEGIN TRANSACTION",nullptr,nullptr,nullptr);
     if(c!=SQLITE_ROW){
-        srvCore::writeDBERRToLog("Could not save MCU data - MCU Not Found");
-        return;
+        str="INSERT INTO servodata (mcu_id, servoId, servoAngle, pwm_MIN, pwm_MAX, target) VALUES (?,?,NULL,?,?,NULL)";
+        for (size_t i = 0; i < r.servoCount; i++){
+            if(r.servos_MIN_MAX[0][i]==NULL){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog(std::string("Could not save MCU data - Invalid MIN value for servo "+std::to_string((uint8_t)i)).data());
+                return _DBMAN_ERROR;        
+            }
+            if(r.servos_MIN_MAX[1][i]==NULL){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog(std::string("Could not save MCU data - Invalid MAX value for servo "+std::to_string((uint8_t)i)).data());
+                return _DBMAN_ERROR;        
+            }
+            sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+                sqlite3_bind_int(pstmt,3,r.servos_MIN_MAX[0][i]);
+                sqlite3_bind_int(pstmt,4,r.servos_MIN_MAX[1][i]);
+                sqlite3_bind_int(pstmt,1,id);
+                sqlite3_bind_int(pstmt,2,i);
+            c=sqlite3_step(pstmt);
+                sqlite3_finalize(pstmt);
+                pstmt=nullptr;
+            if(c!=SQLITE_DONE){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog("Could not save MCU data - Error updating current/target position");
+                return _DBMAN_ERROR;
+            }        
+        }
+    }else{
+        str="UPDATE servodata SET pwm_MIN = ?, pwm_MAX = ? WHERE mcu_id = ? AND servoId = ?";
+        for (size_t i = 0; i < r.servoCount; i++){
+            if(r.servos_MIN_MAX[0][i]==NULL){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog(std::string("Could not save MCU data - Invalid MIN value for servo "+std::to_string((uint8_t)i)).data());
+                return _DBMAN_ERROR;        
+            }
+            if(r.servos_MIN_MAX[1][i]==NULL){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog(std::string("Could not save MCU data - Invalid MAX value for servo "+std::to_string((uint8_t)i)).data());
+                return _DBMAN_ERROR;        
+            }
+            sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+                sqlite3_bind_int(pstmt,1,r.servos_MIN_MAX[0][i]);
+                sqlite3_bind_int(pstmt,2,r.servos_MIN_MAX[1][i]);
+                sqlite3_bind_int(pstmt,3,id);
+                sqlite3_bind_int(pstmt,4,i);
+            c=sqlite3_step(pstmt);
+                sqlite3_finalize(pstmt);
+                pstmt=nullptr;
+            if(c!=SQLITE_DONE){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog("Could not save MCU data - Error updating current/target position");
+                return _DBMAN_ERROR;
+            }        
+        }
     }
 
-    /* Insert information to servodata table */
-    return;
-
+    sqlite3_exec(DB,"COMMIT",nullptr,nullptr,nullptr);
+    srvCore::writeDBERRToLog(std::string("Saved PWM Min/Max MCU data ("+r.mcuName+")").data());
+    return _DBMAN_OK;
 }
 
 void DBMAN::saveMCUInfo(RobotInformation r){
@@ -256,20 +318,5 @@ void DBMAN::saveMCUInfo(RobotInformation r){
     return;
 }
 
-/* Data retrival */
-
 DBMAN::DBMAN(){}
 DBMAN::~DBMAN(){}
-
-
-
-
-/*             str="UPDATE servodata SET (servoAngle = ?, pwm_MIN = ?, pwm_MAX = ?) WHERE mcu_id = AND servoId = ?";
-            sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
-                sqlite3_bind_int(pstmt,1,mcu.servoPositions[i]);
-                sqlite3_bind_null(pstmt,2);
-                sqlite3_bind_null(pstmt,3);
-                sqlite3_bind_int(pstmt,4,id);
-                sqlite3_bind_int(pstmt,5,i);
-            c=sqlite3_step(pstmt);
-                sqlite3_finalize(pstmt); */

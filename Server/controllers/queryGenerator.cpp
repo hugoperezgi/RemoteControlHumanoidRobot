@@ -6,28 +6,6 @@ QueryGenerator::QueryGenerator(/* args */){
 QueryGenerator::~QueryGenerator(){
 }
 
-/* Client fucntions Query[Server <-> Client]*/
-
-    /* -- Query format --  
-
-        !s-<query body>-e!
-        <QueryType>:<param1>-<param2> 
-
-        Query Type 
-            NodeMCU_here - hello from nodeMCU board, no extra params
-            Client_here - hello from client, no extra params
-            _ACK - ok msg, param1 expected
-            eMOD - updateMode(RT/delayed), param1 expected (0-Delayed, 1-RealTime)
-            SRVP - changeServoPosition, param1 (servoID), param2 (servoPosition)
-
-        param1 
-            param1=ACK code for ACK query
-            param1=0/1 for mcuMode and updateMode queries
-            param1=servoID for changeServoPosition query
-    
-    */
-
-
 std::string QueryGenerator::ack(uint8_t code){
     std::string q = "!s-_ACK:0-e!";
     q.replace(8,1,1,code);
@@ -86,7 +64,7 @@ std::string QueryGenerator::dmb_mvServo(uint32_t flag, std::vector<uint8_t> pos,
     for (size_t i = 0; i < pos.size(); i++){
         if((flag&(0b1<<i))==(0b1<<i)){
             count++;
-            q+=(i+1);q+=":";q+=divideIntoBytes(minmax[0][i]+(pos[i]-1)*((minmax[1][i]-minmax[0][i])/180));q+="-";
+            q+=(i+1);q+=":";q+=divideIntoBytes((uint16_t) (1+(0b1<<15)+minmax[0][i]+(pos[i]-1)*(((minmax[1][i]-minmax[0][i])/180))));q+="-";
         }
     }
     q+="!";
@@ -110,9 +88,7 @@ std::string QueryGenerator::smrt_mvServo(uint32_t flag,std::vector<uint8_t> pos)
     q.replace(3,1,1,count);
     return q;
 }
-std::string QueryGenerator::smrt_mvAll(){
-    return "-e-!";
-}
+
 std::string QueryGenerator::smrt_updtServo(uint32_t flag,std::vector<uint8_t> pos){
     std::string q = "-u-0-";
     uint8_t count=0;

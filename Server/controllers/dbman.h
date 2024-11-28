@@ -12,6 +12,7 @@
 
 #define _DBMAN_DBCREATED 0
 #define _DBMAN_OK 100
+#define _DBMAN_ERROR 101
 #define _DBMAN_DBCREATE_ERROR 1
 #define _DBMAN_DB_ALREADYEXIST 2
 #define _DBMAN_NEW_S_MCU 255
@@ -38,7 +39,7 @@ class DBMAN{
         /* Used to save the current state of the MCU when controller goes offline [updateFlag, targetPositions] */
         static void saveMCUInfo(RobotInformation);
         /* Used to upload MCU information through the controller client [servoMin-Max] */
-        static void updateMCUInfo(RobotInformation);
+        static int updateMCUInfo(RobotInformation);
         /* Load all MCU information to controller */
         static RobotInformation getMCUInfo(char* name);
 

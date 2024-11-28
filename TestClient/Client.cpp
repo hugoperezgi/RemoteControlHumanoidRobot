@@ -12,8 +12,11 @@ Client::Client(const char* i, int p)
 
 Client::~Client(){}
 
-void Client::startUp(){
-    
+std::string divideIntoBytes(uint16_t u){
+    std::string hl = "";
+    hl+=(uint8_t)(u>>8);
+    hl+=(uint8_t)(u&0x00ff);
+    return hl;
 }
 
 int Client::connectToMCU(const char* mcuName){
@@ -98,6 +101,28 @@ int Client::setDelayedMode(bool t){
 
 int Client::executeMovements(){
     this->sck.snd("!s-mALL-e!");
+    const char* rq = this->sck.rcv();
+
+    if(strncmp(&rq[3],"_ACK",4)){
+        if(!strncmp(&rq[3],"NACK",4)){
+            return rq[8];
+        }
+        return _CLI_NVALIDRESPONSE;
+    }
+    return _CLI_ok;
+}
+
+int Client::uploadMINMAXinf(std::vector<std::vector<uint16_t>> aV){
+
+    if(aV.empty()||(aV[0].size()!=aV[1].size())){return _CLI_INVALIDPARAMS;}
+    std::string q="!s-uINF-0-"; q.replace(8,1,1,aV[0].size());
+    for(size_t i=0;i<aV[0].size();i++){
+        if((aV[0][i]<SERVOMIN)||(aV[1][i]>SERVOMAX)){return _CLI_OutOfRange;}
+        q+=divideIntoBytes(_UINT_CODIFICATION_+aV[0][i]);q+=":";q+=divideIntoBytes(_UINT_CODIFICATION_+aV[1][i]);q+="-";
+    }
+    q+="e!";
+
+    this->sck.snd(q.data());
     const char* rq = this->sck.rcv();
 
     if(strncmp(&rq[3],"_ACK",4)){

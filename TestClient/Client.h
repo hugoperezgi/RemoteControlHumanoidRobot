@@ -18,6 +18,12 @@
 #define _eMOD_RealTime 101
 #define _eMOD_Delayed 100
 
+//Std Max-Min of servos
+#define SERVOMIN  71 // This is the 'minimum' pulse length count (out of 4096) AKA 0
+#define SERVOMAX  455 // This is the 'maximum' pulse length count (out of 4096) AKA 180º
+
+#define _UINT_CODIFICATION_ 1+(0b1<<15)
+
 /* Generic OK */
 #define _CLI_ok 0
 /* Generic Error */
@@ -41,7 +47,6 @@ class Client{
         Client(const char*,int);
         ~Client();
 
-        void startUp();
         /* Returns a _CLI_ or _NACK_ constant */
         int connectToMCU(const char* mcuName);
         int moveServos(std::vector<int>);
@@ -49,5 +54,6 @@ class Client{
         int setDelayedMode(bool);
         int executeMovements();
         int shutdownServer();
+        int uploadMINMAXinf(std::vector<std::vector<uint16_t>>);
 };
 

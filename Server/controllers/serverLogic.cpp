@@ -38,6 +38,7 @@ std::string serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
     }
     
     std::string rq="ACK";
+    if((*c).mcuInfo.updateFlag==0){return QueryGenerator().nack(_NACK_InvalidParameter);}
 
     if((*c).updateOnRealTime){
         
@@ -121,6 +122,40 @@ std::string serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
     return QueryGenerator().nack(_NACK_NoActiveMCU);
 }
 
+std::string serverLogic::dispatchUINF(char* bquery,ControllerInfo* c){
+    if((*c).mcuInfo.mcuName.empty()){return QueryGenerator().nack(_NACK_NoActiveMCU);}
+
+    std::string query = "";
+    query.clear();
+    query.append(bquery);
+
+    /* [!s]-[uINF]-[number of servos]-[servomin0:servomax0~servomin0:servomax0]-[e!] */
+    /* [!s-]0-2 (3) Header [xxxx]3-6 (4) Type of Query [x]8(1) Number of servos [servoInfo]10-x((6*NumOfServos)-1) */
+
+    uint8_t numServ=query.at(8);
+    if((*c).mcuInfo.servoCount<numServ){return QueryGenerator().nack(_NACK_ServoCountMissmatch);}
+    
+    query=query.substr(10,(6*numServ)-1);
+    std::vector<uint16_t> miV,maV;
+    
+    for (size_t i = 0; i < numServ; i++){
+        miV.emplace_back((QueryGenerator().restore16int(query.at(i*6),query.at(1+(i*6))))-1-(0b1<<15));
+        maV.emplace_back((QueryGenerator().restore16int(query.at(3+(i*6)),query.at(4+(i*6))))-1-(0b1<<15));
+        if((miV[i]<SERVOMIN)||(maV[i]>SERVOMAX)){return QueryGenerator().nack(_NACK_InvalidParameter);}
+    }
+
+    (*c).mcuInfo.servos_MIN_MAX.clear();
+    (*c).mcuInfo.servos_MIN_MAX.emplace_back(miV);
+    (*c).mcuInfo.servos_MIN_MAX.emplace_back(maV);
+
+    if(DBMAN::updateMCUInfo((*c).mcuInfo) == _DBMAN_ERROR){
+        (*c).mcuInfo.servos_MIN_MAX.clear();
+        return QueryGenerator().nack(_NACK_ErrorLoadingMINMAX);
+    }
+
+    return QueryGenerator().ack(_ACK_Generic);
+}
+
 int serverLogic::checkLogInQuery(std::string q){
     if(q.compare(HEADERLEN,12,"NodeMCU_here")==0){return MCUHELLOQUERY;}
     if(q.compare(HEADERLEN,11,"Client_here")==0){return USRHELLOQUERY;}
@@ -133,7 +168,7 @@ RobotInformation serverLogic::getQueryInformation(std::string q){
     std::string tmp=q.substr(16,q.size()-19);
 
     /* [info] mcuName-<servocount>-<pos0>-<pos1>...*/
-        // dumbMCU-<servocount>-<255> {!s-NodeMCU_here-dumbMCU-<servocount>-<255>-e!}
+        // dumbMCU-<servocount>-<187> {!s-NodeMCU_here-dumbMCU-<servocount>-<187>-e!}
     auto i=tmp.find('-');
     if (i == std::string::npos){
         throw std::invalid_argument("Malformed query string.");
@@ -195,11 +230,11 @@ void serverLogic::handleQuery(std::string q, ControllerInfo* c){
             /* !s-sMCU-mcuName-e! ~ Swap active MCU */
         // if(!strcmp(code,"iMCU")){delete code;/* Get MCU info */;return 0;}
             /* !s-iMCU-e! ~ Get MCU info */
-        // if(!strcmp(code,"uINF")){delete code;/* Upload MCU info */;return 0;}
-            /* !s-uINF-[data]-e! ~ Upload MCU info */
+        if(!strcmp(code,"uINF")){delete code;qr=dispatchUINF(q.data(),c);}
+            /* !s-uINF-[data]-e! ~ Upload MCU info (ServoMin/ServoMax PWM parameters) */
 
         if(!strcmp(code,"sOFF")){delete code;srvCore::srvUp=false;qr=QueryGenerator().ack(_ACK_Generic);}
-        /* !s-mALL-e! ~ Shutdown server */
+            /* !s-mALL-e! ~ Shutdown server */
     }
     
     send((*c).controllerSCK,qr.c_str(),qr.size(), 0);
