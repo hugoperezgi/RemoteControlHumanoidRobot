@@ -226,7 +226,7 @@ int DBMAN::updateMCUInfo(RobotInformation r){
                 pstmt=nullptr;
             if(c!=SQLITE_DONE){
                 sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
-                srvCore::writeDBERRToLog("Could not save MCU data - Error updating current/target position");
+                srvCore::writeDBERRToLog("Could not save MCU data - Error saving current/target position");
                 return _DBMAN_ERROR;
             }        
         }
@@ -274,7 +274,7 @@ void DBMAN::saveMCUInfo(RobotInformation r){
     c=sqlite3_step(pstmt);
     int id = sqlite3_column_int(pstmt,0);
         if(c!=SQLITE_ROW){
-            srvCore::writeDBERRToLog("Could not save MCU data - MCU Not Found");
+            srvCore::writeDBERRToLog("Could not update MCU data - MCU Not Found");
             sqlite3_finalize(pstmt);
             pstmt=nullptr;
             return;
@@ -293,26 +293,54 @@ void DBMAN::saveMCUInfo(RobotInformation r){
             pstmt=nullptr;
         if(c!=SQLITE_DONE){
             sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
-            srvCore::writeDBERRToLog("Could not save MCU data - Error updating UpdateFlag");
+            srvCore::writeDBERRToLog("Could not update MCU data - Error updating UpdateFlag");
             return;
         }
 
-    str="UPDATE servodata SET servoAngle = ?, target = ? WHERE mcu_id = ? AND servoId = ?";
-    for (size_t i = 0; i < r.servoCount; i++){
-        sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
-            if(r.servoPositions[i]==NULL){sqlite3_bind_null(pstmt,1);}else{sqlite3_bind_int(pstmt,1,r.servoPositions[i]);}
-            if(r.targetPositions[i]==NULL){sqlite3_bind_int(pstmt,2,0);}else{sqlite3_bind_int(pstmt,2,r.targetPositions[i]);}
-            sqlite3_bind_int(pstmt,3,id);
-            sqlite3_bind_int(pstmt,4,i);
-        c=sqlite3_step(pstmt);
-            sqlite3_finalize(pstmt);
-            pstmt=nullptr;
-        if(c!=SQLITE_DONE){
-            sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
-            srvCore::writeDBERRToLog("Could not save MCU data - Error updating current/target position");
-            return;
-        }        
+    str="SELECT 1 from servodata WHERE mcu_id = ? AND servoId = ?";
+    sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+        sqlite3_bind_text(pstmt,1,r.mcuName.c_str(),r.mcuName.length(),SQLITE_STATIC);
+    c=sqlite3_step(pstmt);
+        sqlite3_finalize(pstmt);
+        pstmt=nullptr;
+
+    if(c!=SQLITE_ROW){
+        /** TODO */
+        str="INSERT INTO servodata (mcu_id, servoId, servoAngle, pwm_MIN, pwm_MAX, target) VALUES (?,?,?,NULL,NULL,?)";
+        for (size_t i = 0; i < r.servoCount; i++){
+            sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+                sqlite3_bind_int(pstmt,1,id);
+                sqlite3_bind_int(pstmt,2,i);
+                if(r.servoPositions[i]==NULL){sqlite3_bind_null(pstmt,3);}else{sqlite3_bind_int(pstmt,3,r.servoPositions[i]);}
+                if(r.targetPositions[i]==NULL){sqlite3_bind_int(pstmt,6,0);}else{sqlite3_bind_int(pstmt,6,r.targetPositions[i]);}
+            c=sqlite3_step(pstmt);
+                sqlite3_finalize(pstmt);
+                pstmt=nullptr;
+            if(c!=SQLITE_DONE){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog("Could not update MCU data - Error saving current/target position");
+                return;
+            }        
+        }
+    }else{
+        str="UPDATE servodata SET servoAngle = ?, target = ? WHERE mcu_id = ? AND servoId = ?";
+        for (size_t i = 0; i < r.servoCount; i++){
+            sqlite3_prepare_v2(DB,str.c_str(),str.length(),&pstmt,nullptr);
+                if(r.servoPositions[i]==NULL){sqlite3_bind_null(pstmt,1);}else{sqlite3_bind_int(pstmt,1,r.servoPositions[i]);}
+                if(r.targetPositions[i]==NULL){sqlite3_bind_int(pstmt,2,0);}else{sqlite3_bind_int(pstmt,2,r.targetPositions[i]);}
+                sqlite3_bind_int(pstmt,3,id);
+                sqlite3_bind_int(pstmt,4,i);
+            c=sqlite3_step(pstmt);
+                sqlite3_finalize(pstmt);
+                pstmt=nullptr;
+            if(c!=SQLITE_DONE){
+                sqlite3_exec(DB,"ROLLBACK",nullptr, nullptr,nullptr);
+                srvCore::writeDBERRToLog("Could not update MCU data - Error updating current/target position");
+                return;
+            }        
+        }
     }
+
     sqlite3_exec(DB,"COMMIT",nullptr,nullptr,nullptr);
     srvCore::writeDBERRToLog(std::string("Updated MCU data ("+r.mcuName+")").data());
     return;

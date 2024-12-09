@@ -54,7 +54,7 @@ std::string serverLogic::dispatchSRVP(char* bquery,ControllerInfo* c){
 
         if((*c).mcuInfo.smartMCU){
             rq=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().smrt_updtServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions));
-            (*c).mcuInfo.updateFlag=0;
+            // (*c).mcuInfo.updateFlag=0;
         }    
     }
 
@@ -89,7 +89,7 @@ std::string serverLogic::dispatchMALL(ControllerInfo* c){
     }else{
         /* Dumb mode */
         if((*c).mcuInfo.servos_MIN_MAX.empty()){return QueryGenerator().nack(_NACK_NoMCUInfo);}
-        if((*c).mcuInfo.updateFlag==0){return QueryGenerator().nack(_NACK_NoMCUInfo);}
+        if((*c).mcuInfo.updateFlag==0){return QueryGenerator().nack(_NACK_InvalidParameter);}
         query=srvCore::contactMCU((*c).mcuInfo.mcuName.c_str(),QueryGenerator().dmb_mvServo((*c).mcuInfo.updateFlag,(*c).mcuInfo.targetPositions,(*c).mcuInfo.servos_MIN_MAX));
     }
     if(strcmp(&query[0],"ACK")){return QueryGenerator().nack(_NACK_ErrorContactingMCU);}
@@ -116,6 +116,7 @@ std::string serverLogic::dispatchSMCU(char* bquery,ControllerInfo* c){
     query=query.substr(8,query.size()-11);
 
     (*c).mcuInfo=DBMAN::getMCUInfo(query.data());
+    if((*c).mcuInfo.updateFlag!=0){(*c).updateOnRealTime=false;}
     if(!(*c).mcuInfo.mcuName.compare(query)){
         return QueryGenerator().ack(_ACK_Generic);
     }
