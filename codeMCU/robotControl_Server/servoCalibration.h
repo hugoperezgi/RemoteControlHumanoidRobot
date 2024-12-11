@@ -1,9 +1,13 @@
-#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
+#include <stdint.h>
 
+#define SERVO_FREQ 50 // Analog servos run at ~50 Hz updates
 
 //Std Max-Min of servos
 #define SERVOMIN  71 // This is the 'minimum' pulse length count (out of 4096) AKA 0
 #define SERVOMAX  455 // This is the 'maximum' pulse length count (out of 4096) AKA 180º
+
+// Total Number of servos
+#define SERVOCOUNT 6
 
 //yellow color on servo // White marking on cable
 #define SERVOMIN_Rotation_Biceps_y  71 
@@ -89,8 +93,10 @@
 #define SERVOMIDDLE_torso 280 //Hold position-Middle position
 
 
-int minServoPos[]={SERVOMIN_thumb_L,SERVOMIN_index_L,SERVOMIN_middle_L,SERVOMIN_ring_L,SERVOMIN_pinky_L,SERVOMIN_palm_L};
-int maxServoPos[]={SERVOMAX_thumb_L,SERVOMAX_index_L,SERVOMAX_middle_L,SERVOMAX_ring_L,SERVOMAX_pinky_L,SERVOMAX_palm_L};
+uint16_t minServoPos[]={SERVOMIN_thumb_L,SERVOMIN_index_L,SERVOMIN_middle_L,SERVOMIN_ring_L,SERVOMIN_pinky_L,SERVOMIN_palm_L};
+uint16_t maxServoPos[]={SERVOMAX_thumb_L,SERVOMAX_index_L,SERVOMAX_middle_L,SERVOMAX_ring_L,SERVOMAX_pinky_L,SERVOMAX_palm_L};
+uint8_t targetServoPos[]={SERVOMAX_thumb_L,SERVOMAX_index_L,SERVOMAX_middle_L,SERVOMAX_ring_L,SERVOMAX_pinky_L,SERVOMAX_palm_L};
+uint8_t restingServoPos[]={000,000,000,000,000,000};
 
 
 //Board1 - Left Hand(6) // Board3 - Right Hand(6)
